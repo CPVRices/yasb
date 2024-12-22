@@ -18,6 +18,7 @@ build_options = {
         'core.widgets.yasb.github',
         'core.widgets.yasb.media',
         'core.widgets.yasb.microphone',
+        'core.widgets.yasb.open_key',
         'core.widgets.yasb.bluetooth',
         'core.widgets.yasb.wallpapers',
         'core.widgets.yasb.traffic',
