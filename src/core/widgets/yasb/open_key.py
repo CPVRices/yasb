@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import QLabel, QHBoxLayout, QWidget
 from PyQt6.QtCore import Qt
 import win32gui
 import win32con
+import re
 
 
 class OpenKeyWidget(BaseWidget):
@@ -40,7 +41,6 @@ class OpenKeyWidget(BaseWidget):
         # Add the container to the main widget layout
         self.widget_layout.addWidget(self._widget_container)
 
-        # self.register_callback("toggle_label", self._toggle_label)
         self.register_callback("update_label", self._update_label)
         self.register_callback("toggle_im", self.toggle_im)
         self.register_callback("toggle_control_panel", self.toggle_control_panel)
@@ -52,33 +52,63 @@ class OpenKeyWidget(BaseWidget):
 
         self._widgets = []
 
-        obj = QLabel('text lel')
-        obj.setProperty("class", "label")
-        obj.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._widget_container_layout.addWidget(obj)
-        self._widgets.append(obj)
+        self._create_dynamically_label(self._label)
 
         self._update_label()
         self.start_timer()
 
-    @staticmethod
-    def get_en_text():
-        if 'OKC_EN' in os.environ:
-            return str(os.environ['OKC_EN'])
-        return 'EN'
+    def _create_dynamically_label(self, content: str):
+        def process_content(content):
+            label_parts = re.split('(<span.*?>.*?</span>)', content)
+            widgets = []
+            for part in label_parts:
+                part = part.strip()
+                if not part:
+                    continue
+                if '<span' in part and '</span>' in part:
+                    class_name = re.search(r'class=(["\'])([^"\']+?)\1', part)
+                    class_result = class_name.group(2) if class_name else 'icon'
+                    icon = re.sub(r'<span.*?>|</span>', '', part).strip()
+                    label = QLabel(icon)
+                    label.setProperty("class", class_result)
+                else:
+                    label = QLabel(part)
+                    label.setProperty("class", "label")
+                    label.setText("Loading...")
+                label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                self._widget_container_layout.addWidget(label)
+                widgets.append(label)
+                label.show()
 
-    @staticmethod
-    def get_vn_text():
-        if 'OKC_VN' in os.environ:
-            return str(os.environ['OKC_VN'])
-        return 'VN'
+            return widgets
+
+        self._widgets = process_content(content)
+
+    def _update_label(self):
+        def get_text():
+            text = self.get_resp(self.sig(self.OP_GET))
+            return self._label.replace('%l', text)
+
+        active_widgets = self._widgets
+        label_parts = re.split('(<span.*?>.*?</span>)', self._label)
+        widget_index = 0
+        for part in label_parts:
+            part = part.strip()
+            if part and widget_index < len(active_widgets) and isinstance(active_widgets[widget_index], QLabel):
+                if '<span' in part and '</span>' in part:
+                    icon = re.sub(r'<span.*?>|</span>', '', part).strip()
+                    active_widgets[widget_index].setText(icon)
+                else:
+                    active_widgets[widget_index].setText(get_text())
+                active_widgets[widget_index].show()
+                widget_index += 1
 
     @staticmethod
     def get_resp(resp):
         if resp == OpenKeyWidget.EN:
-            return OpenKeyWidget.get_en_text()
+            return str(os.environ['OKC_EN']) if 'OKC_EN' in os.environ else 'EN'
         elif resp == OpenKeyWidget.VN:
-            return OpenKeyWidget.get_vn_text()
+            return str(os.environ['OKC_VN']) if 'OKC_VN' in os.environ else 'VN'
         else:
             return 'process communication error'
 
@@ -90,11 +120,6 @@ class OpenKeyWidget(BaseWidget):
             return result
         else:
             return -1
-
-    def _update_label(self):
-        active_widgets = self._widgets
-        text = self.get_resp(self.sig(self.OP_GET))
-        active_widgets[0].setText(self._label.replace('%l', text))
 
     def toggle_im(self):
         self.sig(self.OP_TOGGLE)
