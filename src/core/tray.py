@@ -9,7 +9,7 @@ import subprocess
 import winshell
 from PyQt6.QtWidgets import QSystemTrayIcon, QMenu, QMessageBox
 from PyQt6.QtGui import QIcon, QGuiApplication
-from PyQt6.QtCore import QCoreApplication, QSize, Qt 
+from PyQt6.QtCore import QCoreApplication, QSize, Qt
 from core.bar_manager import BarManager
 from settings import GITHUB_URL, SCRIPT_PATH, APP_NAME, APP_NAME_FULL, DEFAULT_CONFIG_DIRECTORY, GITHUB_THEME_URL, BUILD_VERSION
 from core.config import get_config

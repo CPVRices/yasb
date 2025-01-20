@@ -79,6 +79,7 @@ class Bar(QWidget):
                 Acrylic=blur_effect['acrylic'],
                 DarkMode=blur_effect['dark_mode'],
                 RoundCorners=blur_effect['round_corners'],
+                RoundCornersType=blur_effect['round_corners_type'],
                 BorderColor=blur_effect['border_color']
             )
 
@@ -191,10 +192,11 @@ class Bar(QWidget):
         
     def showEvent(self, event):
         super().showEvent(event)
-        try:
-            self.animation.start()
-        except AttributeError:
-            logging.error("Animation not initialized.")
+        if self._animation['enabled']:
+            try:
+                self.animation.start()
+            except AttributeError:
+                logging.error("Animation not initialized.")
         
         
     def detect_os_theme(self) -> bool:

@@ -7,10 +7,19 @@ DEFAULTS = {
     'group_label': {
         'enabled': False,
         'volume_labels': ['C'],
+        'show_label_name': True,
         'blur': True,
+        'round_corners': True,
+        'round_corners_type': 'normal',
+        'border_color': 'System',
         'alignment': 'right',
         'direction': 'down',
         'distance': 6,
+    },
+    'animation': {
+        'enabled': True,
+        'type': 'fadeInOut',
+        'duration': 200
     },
     'container_padding': {'top': 0, 'left': 0, 'bottom': 0, 'right': 0},
     'callbacks': {
@@ -61,9 +70,26 @@ VALIDATION_SCHEMA = {
                 },
                 'default': DEFAULTS['group_label']['volume_labels']
             },
+            'show_label_name': {
+                'type': 'boolean',
+                'default': DEFAULTS['group_label']['show_label_name']
+            },
             'blur': {
                 'type': 'boolean',
                 'default': DEFAULTS['group_label']['blur']
+            },
+            'round_corners': {
+                'type': 'boolean',
+                'default': DEFAULTS['group_label']['round_corners']
+            },
+            'round_corners_type': {
+                'type': 'string',
+                'default': DEFAULTS['group_label']['round_corners_type'],
+                'allowed': ['normal', 'small']
+            },
+            'border_color': {
+                'type': 'string',
+                'default': DEFAULTS['group_label']['border_color']
             },
             'alignment': {
                 'type': 'string',
@@ -79,6 +105,25 @@ VALIDATION_SCHEMA = {
             }
         },
         'default': DEFAULTS['group_label']
+    },
+    'animation': {
+        'type': 'dict',
+        'required': False,
+        'schema': {
+            'enabled': {
+                'type': 'boolean',
+                'default': DEFAULTS['animation']['enabled']
+            },
+            'type': {
+                'type': 'string',
+                'default': DEFAULTS['animation']['type']
+            },
+            'duration': {
+                'type': 'integer',
+                'default': DEFAULTS['animation']['duration']
+            }
+        },
+        'default': DEFAULTS['animation']
     },
     'container_padding': {
         'type': 'dict',

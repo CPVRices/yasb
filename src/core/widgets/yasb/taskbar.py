@@ -8,9 +8,10 @@ from PyQt6.QtWidgets import QLabel, QHBoxLayout, QWidget, QGraphicsOpacityEffect
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from core.validation.widgets.yasb.taskbar import VALIDATION_SCHEMA
 from core.utils.win32.utilities import get_hwnd_info
+from core.utils.win32.app_icons import get_window_icon
+from core.utils.widgets.animation_manager import AnimationManager
 from PIL import Image
 import win32gui
-from core.utils.win32.app_icons import get_window_icon
 import win32con
 
 try:
@@ -28,7 +29,7 @@ class TaskbarWidget(BaseWidget):
     def __init__(
             self,
             icon_size: int,
-            animation: bool,
+            animation:dict[str, str] | bool,
             tooltip: bool,
             ignore_apps: dict[str, list[str]],
             container_padding: dict,
@@ -38,7 +39,15 @@ class TaskbarWidget(BaseWidget):
 
         self.icon_label = QLabel()
         self._label_icon_size = icon_size
-        self._animation = animation
+        if isinstance(animation, bool):
+            # Default animation settings if only a boolean is provided to prevent breaking configurations
+            self._animation = {
+                'enabled': animation,
+                'type': 'fadeInOut',
+                'duration': 200
+            }
+        else:
+            self._animation = animation
         self._tooltip = tooltip
         self._ignore_apps = ignore_apps
         self._padding = container_padding
@@ -148,7 +157,7 @@ class TaskbarWidget(BaseWidget):
             if widget != self.icon_label:
                 hwnd = widget.property("hwnd")
                 if hwnd in removed_hwnds:
-                    if self._animation:
+                    if self._animation['enabled']:
                         self._animate_icon(widget, start_width=widget.width(), end_width=0)
                     else:
                         self._widget_container_layout.removeWidget(widget)
@@ -158,7 +167,7 @@ class TaskbarWidget(BaseWidget):
         for title, icon, hwnd, process in new_icons:
             icon_label = QLabel()
             icon_label.setProperty("class", "app-icon")
-            if self._animation:
+            if self._animation['enabled']:
                 icon_label.setFixedWidth(0)
             icon_label.setPixmap(icon)
             if self._tooltip:
@@ -167,7 +176,7 @@ class TaskbarWidget(BaseWidget):
             icon_label.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
             self._widget_container_layout.addWidget(icon_label)
 
-            if self._animation:
+            if self._animation['enabled']:
                 self._animate_icon(icon_label, start_width=0, end_width=icon_label.sizeHint().width())
 
     def _get_app_icon(self, hwnd: int, title:str, process: dict, event: WinEvent) -> None:
@@ -238,7 +247,8 @@ class TaskbarWidget(BaseWidget):
             return
 
         if action == "toggle":
-            self._blink_on_click(widget)
+            if self._animation['enabled']:
+                AnimationManager.animate(widget, self._animation['type'], self._animation['duration'])
             self.bring_to_foreground(hwnd)
         else:
             logging.warning(f"Unknown action '{action}'.")
@@ -261,36 +271,7 @@ class TaskbarWidget(BaseWidget):
                 win32gui.SetForegroundWindow(hwnd)
             else:
                 win32gui.ShowWindow(hwnd, win32con.SW_MINIMIZE)
-                
-    def _blink_on_click(self, icon_label, duration=200):
-        if hasattr(self, '_opacity_effect') and self._opacity_effect is not None:
-            self._opacity_effect.setOpacity(1.0)
-            if self._blink_timer.isActive():
-                self._blink_timer.stop()
 
-        self._opacity_effect = QGraphicsOpacityEffect()
-        icon_label.setGraphicsEffect(self._opacity_effect)
-        self._opacity_effect.setOpacity(0.4)
-
-        self._blink_timer = QTimer()
-        step = 0
-        steps = 20
-        increment = 0.5 / steps
-
-        def animate():
-            nonlocal step
-            new_opacity = self._opacity_effect.opacity() + increment
-            if new_opacity >= 1.0:
-                new_opacity = 1.0
-                self._opacity_effect.setOpacity(new_opacity)
-                self._blink_timer.stop()
-                self._opacity_effect = None
-                return
-            self._opacity_effect.setOpacity(new_opacity)
-            step += 1
-
-        self._blink_timer.timeout.connect(animate)
-        self._blink_timer.start(duration // steps)
     
     def _animate_icon(self, icon_label, start_width=None, end_width=None, fps=60, duration=120):
         if start_width is None:

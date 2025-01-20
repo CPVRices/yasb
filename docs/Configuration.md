@@ -34,7 +34,7 @@ All valid options for the widgets are listed on the widgets page.
 | `screens`         | list    | `['*']`       | The screens on which the status bar should be displayed. |
 | `class_name`      | string  | `"yasb-bar"`  | The CSS class name for the status bar. |
 | `alignment`       | object  | `{position: "top", center: false}` | The alignment settings for the status bar. |
-| `blur_effect`     | object  | `{enabled: false, acrylic: false, dark_mode: false, round_corners: false, border_color: System}` | The blur effect settings for the status bar. |
+| `blur_effect`     | object  | `{enabled: false, acrylic: false, dark_mode: false, round_corners: false, round_corners_type: 'normal', border_color: System}` | The blur effect settings for the status bar. |
 | `window_flags`    | object  | `{always_on_top: false, windows_app_bar: true}` | The window flags for the status bar. |
 | `dimensions`      | object  | `{width: "100%", height: 36}` | The dimensions of the status bar. |
 | `padding`         | object  | `{top: 4, left: 0, bottom: 4, right: 0}` | The padding for the status bar. |
@@ -72,4 +72,7 @@ We used Windows API for blur, and because of this some parts are limited with th
 `blur_effect.acrylic` Enable an acrylic blur effect behind a window. (Windows 10)<br>
 `blur_effect.dark_mode` Dark mode and more shadow below bar.<br>
 `blur_effect.round_corners` True or False, if set to True Windows will add radius. You can't set a custom value.<br>
+`blur_effect.round_corners_type` Border type for bar can be `normal` and `small`. Default is `normal`.<br>
 `blur_effect.border_color` Border color for bar can be `None`, `System` or `Hex Color` `"#ff0000"`. (This applies to system round_corners and if blur_effect.round_corners is True.)
+
+> Most of this options are limited to Windows 11 only, and some options like border_color, round_corners,round_corners_type wont work on Windows 10.

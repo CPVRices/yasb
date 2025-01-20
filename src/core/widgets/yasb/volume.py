@@ -10,6 +10,7 @@ from comtypes import CLSCTX_ALL, CoInitialize, CoUninitialize, COMObject
 from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume, IAudioEndpointVolumeCallback
 from pycaw.callbacks import MMNotificationClient
 from core.utils.win32.system_function import KEYEVENTF_KEYUP, VK_VOLUME_UP, VK_VOLUME_DOWN
+from core.utils.widgets.animation_manager import AnimationManager
 # Disable comtypes logging
 logging.getLogger('comtypes').setLevel(logging.CRITICAL)
  
@@ -40,6 +41,8 @@ class VolumeWidget(BaseWidget):
         label_alt: str,
         tooltip: bool,
         volume_icons: list[str],
+        animation: dict[str, str],
+        container_padding: dict[str, int],
         callbacks: dict[str, str]
     ):
         super().__init__(class_name="volume-widget")
@@ -47,12 +50,13 @@ class VolumeWidget(BaseWidget):
         self._label_content = label
         self._label_alt_content = label_alt
         self._tooltip = tooltip
-        
+        self._animation = animation
+        self._padding = container_padding
         self.volume = None
         self._volume_icons = volume_icons
         self._widget_container_layout: QHBoxLayout = QHBoxLayout()
         self._widget_container_layout.setSpacing(0)
-        self._widget_container_layout.setContentsMargins(0, 0, 0, 0)
+        self._widget_container_layout.setContentsMargins(self._padding['left'],self._padding['top'],self._padding['right'],self._padding['bottom'])
         self._widget_container: QWidget = QWidget()
         self._widget_container.setLayout(self._widget_container_layout)
         self._widget_container.setProperty("class", "widget-container")
@@ -64,6 +68,7 @@ class VolumeWidget(BaseWidget):
         self.callback_left = "toggle_mute"
         self.callback_right = callbacks["on_right"]
         self.callback_middle = callbacks["on_middle"]
+        self._padding = container_padding
         
         self.cb = AudioEndpointChangeCallback(self)
         self.enumerator = AudioUtilities.GetDeviceEnumerator()
@@ -76,6 +81,8 @@ class VolumeWidget(BaseWidget):
 
         
     def _toggle_label(self):
+        if self._animation['enabled']:
+            AnimationManager.animate(self, self._animation['type'], self._animation['duration'])
         self._show_alt_label = not self._show_alt_label
         for widget in self._widgets:
             widget.setVisible(not self._show_alt_label)
@@ -194,6 +201,8 @@ class VolumeWidget(BaseWidget):
 
 
     def toggle_mute(self):
+        if self._animation['enabled']:
+            AnimationManager.animate(self, self._animation['type'], self._animation['duration'])
         if self.volume is None:
             logging.warning("Cannot toggle mute: No audio device connected.")
             return

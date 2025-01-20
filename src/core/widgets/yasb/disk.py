@@ -1,30 +1,13 @@
 import os
 import psutil
 import re
+import win32api
 from core.widgets.base import BaseWidget
 from core.validation.widgets.yasb.disk import VALIDATION_SCHEMA
-from PyQt6.QtWidgets import QLabel, QHBoxLayout, QWidget, QProgressBar, QVBoxLayout, QApplication
-from PyQt6.QtCore import Qt, QPoint, pyqtSignal, QEvent
-from core.utils.win32.blurWindow import Blur
-from core.utils.utilities import is_windows_10
-
-class PopupWidget(QWidget):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        QApplication.instance().installEventFilter(self)
-
-    def eventFilter(self, obj, event):
-        if event.type() == QEvent.Type.MouseButtonPress:
-            global_pos = event.globalPosition().toPoint()
-            if not self.geometry().contains(global_pos):
-                self.hide()
-                return True
-        return super().eventFilter(obj, event)
-
-    def hideEvent(self, event):
-        QApplication.instance().removeEventFilter(self)
-        super().hideEvent(event)
-
+from PyQt6.QtWidgets import QLabel, QHBoxLayout, QWidget, QProgressBar, QVBoxLayout
+from PyQt6.QtCore import Qt, QPoint, pyqtSignal
+from core.utils.utilities import PopupWidget
+from core.utils.widgets.animation_manager import AnimationManager
 
 class ClickableDiskWidget(QWidget):
     clicked = pyqtSignal()
@@ -50,6 +33,7 @@ class DiskWidget(BaseWidget):
             update_interval: int,
             group_label: dict[str, str],
             container_padding: dict[str, int],
+            animation: dict[str, str],
             callbacks: dict[str, str],
     ):
         super().__init__(int(update_interval * 1000), class_name="disk-widget")
@@ -60,7 +44,7 @@ class DiskWidget(BaseWidget):
         self._volume_label = volume_label.upper()
         self._padding = container_padding
         self._group_label = group_label
-
+        self._animation = animation
         # Construct container
         self._widget_container_layout: QHBoxLayout = QHBoxLayout()
         self._widget_container_layout.setSpacing(0)
@@ -75,6 +59,7 @@ class DiskWidget(BaseWidget):
         self._create_dynamically_label(self._label_content, self._label_alt_content)
 
         self.register_callback("toggle_label", self._toggle_label)
+        self.register_callback("toggle_group", self._toggle_group)
         self.register_callback("update_label", self._update_label)
         self.callback_left = callbacks['on_left']
         self.callback_right = callbacks['on_right']
@@ -85,16 +70,19 @@ class DiskWidget(BaseWidget):
         
 
     def _toggle_label(self):
-        if self._group_label['enabled']:
-            self.show_group_label()
-            return
         self._show_alt_label = not self._show_alt_label
         for widget in self._widgets:
             widget.setVisible(not self._show_alt_label)
         for widget in self._widgets_alt:
             widget.setVisible(self._show_alt_label)
         self._update_label()
-
+        
+    def _toggle_group(self):
+        if self._group_label['enabled']:
+            if self._animation['enabled']:
+                AnimationManager.animate(self, self._animation['type'], self._animation['duration'])
+            self.show_group_label()
+        
     def _create_dynamically_label(self, content: str, content_alt: str):
         def process_content(content, is_alt=False):
             label_parts = re.split('(<span.*?>.*?</span>)', content)
@@ -115,7 +103,7 @@ class DiskWidget(BaseWidget):
                     label.setProperty("class", "label")
                 label.setAlignment(Qt.AlignmentFlag.AlignCenter)  
                 if self._group_label['enabled']:
-                    label.setCursor(Qt.CursorShape.PointingHandCursor)  
+                    label.setCursor(Qt.CursorShape.PointingHandCursor)
                 self._widget_container_layout.addWidget(label)
                 widgets.append(label)
                 if is_alt:
@@ -151,12 +139,22 @@ class DiskWidget(BaseWidget):
                     active_widgets[widget_index].setText(formatted_text)
                 widget_index += 1
 
-           
+    def _get_volume_label(self, drive_letter):
+        if not self._group_label['show_label_name']:
+            return None
+        try:
+            volume_label = win32api.GetVolumeInformation(f"{drive_letter}:\\")[0]
+            return volume_label
+        except Exception:
+            return None
+         
     def show_group_label(self):  
-        self.dialog = PopupWidget(self)
+        self.dialog = PopupWidget(self, self._group_label['blur'], self._group_label['round_corners'], self._group_label['round_corners_type'], self._group_label['border_color'])
         self.dialog.setProperty("class", "disk-group")
         self.dialog.setWindowFlag(Qt.WindowType.FramelessWindowHint)
         self.dialog.setWindowFlag(Qt.WindowType.Popup)
+        self.dialog.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint)
+        
         layout = QVBoxLayout()
         for label in self._group_label['volume_labels']:
             disk_space = self._get_space(label)
@@ -165,6 +163,9 @@ class DiskWidget(BaseWidget):
             row_widget = QWidget()
             row_widget.setProperty("class", "disk-group-row")
             
+            volume_label = self._get_volume_label(label)
+            display_label = f"{volume_label} ({label}):" if volume_label else f"{label}:"
+    
             clicable_row = ClickableDiskWidget(label)
             clicable_row.clicked.connect(lambda lbl=label: self.open_explorer(lbl))
             clicable_row.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -172,7 +173,7 @@ class DiskWidget(BaseWidget):
             v_layout = QVBoxLayout(clicable_row)
             h_layout = QHBoxLayout()
             
-            label_widget = QLabel(f"{label}:")
+            label_widget = QLabel(display_label)
             label_widget.setProperty("class", "disk-group-label")
             h_layout.addWidget(label_widget)
 
@@ -213,14 +214,6 @@ class DiskWidget(BaseWidget):
                 
         self.dialog.setLayout(layout)
         
-        if self._group_label['blur']:
-            Blur(
-                self.dialog.winId(),
-                Acrylic=True if is_windows_10() else False,
-                DarkMode=False,
-                RoundCorners=True,
-                BorderColor="System"
-            )
 
         # Position the dialog 
         self.dialog.adjustSize()

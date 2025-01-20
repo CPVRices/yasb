@@ -7,11 +7,17 @@ DEFAULTS = {
     'max_length': None,
     'max_length_ellipsis': '...',
     'monitor_exclusive': True,
+    'animation': {
+        'enabled': True,
+        'type': 'fadeInOut',
+        'duration': 200
+    },
     'ignore_windows': {
         'classes': [],
         'processes': [],
         'titles': []
     },
+    'container_padding': {'top': 0, 'left': 0, 'bottom': 0, 'right': 0},
     'callbacks': {
         'on_left': 'toggle_label',
         'on_middle': 'do_nothing',
@@ -57,6 +63,25 @@ VALIDATION_SCHEMA = {
         'required': False,
         'default': DEFAULTS['monitor_exclusive']
     },
+    'animation': {
+        'type': 'dict',
+        'required': False,
+        'schema': {
+            'enabled': {
+                'type': 'boolean',
+                'default': DEFAULTS['animation']['enabled']
+            },
+            'type': {
+                'type': 'string',
+                'default': DEFAULTS['animation']['type']
+            },
+            'duration': {
+                'type': 'integer',
+                'default': DEFAULTS['animation']['duration']
+            }
+        },
+        'default': DEFAULTS['animation']
+    },
     'ignore_window': {
         'type': 'dict',
         'schema': {
@@ -83,6 +108,29 @@ VALIDATION_SCHEMA = {
             }
         },
         'default': DEFAULTS['ignore_windows']
+    },
+    'container_padding': {
+        'type': 'dict',
+        'required': False,
+        'schema': {
+            'top': {
+                'type': 'integer',
+                'default': DEFAULTS['container_padding']['top']
+            },
+            'left': {
+                'type': 'integer',
+                'default': DEFAULTS['container_padding']['left']
+            },
+            'bottom': {
+                'type': 'integer',
+                'default': DEFAULTS['container_padding']['bottom']
+            },
+            'right': {
+                'type': 'integer',
+                'default': DEFAULTS['container_padding']['right']
+            }
+        },
+        'default': DEFAULTS['container_padding']
     },
     'callbacks': {
         'type': 'dict',

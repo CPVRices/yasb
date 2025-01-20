@@ -19,6 +19,7 @@ import threading
 from core.event_service import EventService
 from core.utils.widgets.wallpapers_gallery import ImageGallery
 from core.utils.alert_dialog import raise_info_alert
+from core.utils.widgets.animation_manager import AnimationManager
 
 class WallpapersWidget(BaseWidget):
     set_wallpaper_signal = pyqtSignal(str) 
@@ -34,7 +35,9 @@ class WallpapersWidget(BaseWidget):
         change_automatically: bool,
         image_path: str,
         tooltip: bool,
+        animation: dict[str, str],
         run_after: list[str],
+        container_padding: dict[str, int],
         gallery: dict = None
     ):
         """Initialize the WallpapersWidget with configuration parameters."""
@@ -48,14 +51,16 @@ class WallpapersWidget(BaseWidget):
         self._tooltip = tooltip
         self._run_after = run_after
         self._gallery = gallery
-
+        self._animation = animation
+        self._padding = container_padding
+        
         self._last_image = None
         self._is_running = False 
         
         # Construct container
         self._widget_container_layout: QHBoxLayout = QHBoxLayout()
         self._widget_container_layout.setSpacing(0)
-        self._widget_container_layout.setContentsMargins(0, 0, 0, 0)
+        self._widget_container_layout.setContentsMargins(self._padding['left'],self._padding['top'],self._padding['right'],self._padding['bottom'])
         # Initialize container
         self._widget_container: QWidget = QWidget()
         self._widget_container.setLayout(self._widget_container_layout)
@@ -207,6 +212,8 @@ class WallpapersWidget(BaseWidget):
             return
         
         if self._gallery['enabled']: 
+            if self._animation['enabled']:
+                AnimationManager.animate(self, self._animation['type'], self._animation['duration'])
             if event is None or event.button() == Qt.MouseButton.LeftButton:
                 
                 if self._image_gallery is not None and self._image_gallery.isVisible():

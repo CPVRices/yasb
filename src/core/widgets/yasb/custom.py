@@ -7,6 +7,7 @@ from core.validation.widgets.yasb.custom import VALIDATION_SCHEMA
 from PyQt6.QtWidgets import QLabel, QHBoxLayout, QWidget
 from PyQt6.QtCore import Qt, pyqtSignal, QObject
 from core.utils.win32.system_function import function_map
+from core.utils.widgets.animation_manager import AnimationManager
 
 class CustomWorker(QObject):
     finished = pyqtSignal()
@@ -24,7 +25,10 @@ class CustomWorker(QObject):
             proc = subprocess.Popen(self.cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,creationflags=subprocess.CREATE_NO_WINDOW,  shell=True)
             output = proc.stdout.read()
             if self.return_type == "json":
-                exec_data = json.loads(output)
+                try:
+                    exec_data = json.loads(output)
+                except json.JSONDecodeError:
+                    exec_data = None
             else:
                 exec_data = output.decode('utf-8').strip()
         self.data_ready.emit(exec_data)
@@ -40,6 +44,8 @@ class CustomWidget(BaseWidget):
             label_max_length: int,
             exec_options: dict,
             callbacks: dict,
+            animation: dict[str, str],
+            container_padding: dict[str, int],
             class_name: str
     ):
         super().__init__(exec_options['run_interval'], class_name=f"custom-widget {class_name}")
@@ -51,11 +57,12 @@ class CustomWidget(BaseWidget):
         self._show_alt_label = False
         self._label_content = label
         self._label_alt_content = label_alt
-        
+        self._animation = animation
+        self._padding = container_padding
         # Construct container
         self._widget_container_layout: QHBoxLayout = QHBoxLayout()
         self._widget_container_layout.setSpacing(0)
-        self._widget_container_layout.setContentsMargins(0, 0, 0, 0)
+        self._widget_container_layout.setContentsMargins(self._padding['left'],self._padding['top'],self._padding['right'],self._padding['bottom'])
         # Initialize container
         self._widget_container: QWidget = QWidget()
         self._widget_container.setLayout(self._widget_container_layout)
@@ -79,6 +86,8 @@ class CustomWidget(BaseWidget):
             self.start_timer()
 
     def _toggle_label(self):
+        if self._animation['enabled']:
+            AnimationManager.animate(self, self._animation['type'], self._animation['duration'])
         self._show_alt_label = not self._show_alt_label
         for widget in self._widgets:
             widget.setVisible(not self._show_alt_label)

@@ -4,6 +4,7 @@ from core.validation.widgets.yasb.language import VALIDATION_SCHEMA
 from PyQt6.QtWidgets import QLabel, QHBoxLayout, QWidget
 from PyQt6.QtCore import Qt
 import ctypes
+from core.utils.widgets.animation_manager import AnimationManager
 
 # Constants
 LOCALE_NAME_MAX_LENGTH = 85
@@ -26,18 +27,22 @@ class LanguageWidget(BaseWidget):
         label: str,
         label_alt: str,
         update_interval: int,
-        callbacks: dict[str, str],
+        animation: dict[str, str],
+        container_padding: dict[str, int],
+        callbacks: dict[str, str]
     ):
         super().__init__(int(update_interval * 1000), class_name="language-widget")
 
         self._show_alt_label = False
         self._label_content = label
         self._label_alt_content = label_alt
- 
+        self._animation = animation
+        self._padding = container_padding
+        
         # Construct container
         self._widget_container_layout: QHBoxLayout = QHBoxLayout()
         self._widget_container_layout.setSpacing(0)
-        self._widget_container_layout.setContentsMargins(0, 0, 0, 0)
+        self._widget_container_layout.setContentsMargins(self._padding['left'],self._padding['top'],self._padding['right'],self._padding['bottom'])
         # Initialize container
         self._widget_container: QWidget = QWidget()
         self._widget_container.setLayout(self._widget_container_layout)
@@ -58,6 +63,8 @@ class LanguageWidget(BaseWidget):
         self.start_timer()
 
     def _toggle_label(self):
+        if self._animation['enabled']:
+            AnimationManager.animate(self, self._animation['type'], self._animation['duration'])
         self._show_alt_label = not self._show_alt_label
         for widget in self._widgets:
             widget.setVisible(not self._show_alt_label)

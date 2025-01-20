@@ -4,10 +4,18 @@ DEFAULTS = {
     'power_menu': True,
     'system_menu': True,
     'blur': False,
+    'round_corners': True,
+    'round_corners_type': 'normal',
+    'border_color': 'System',
     'alignment': 'left',
     'direction': 'down',
     'distance': 6,
     'menu_labels': {'shutdown': 'Shutdown', 'restart': 'Restart', 'logout': 'Logout', 'lock': 'Lock', 'sleep': 'Sleep', 'system': 'System Settings', 'about': 'About This PC', 'task_manager': 'Task Manager'},
+    'animation': {
+        'enabled': True,
+        'type': 'fadeInOut',
+        'duration': 200
+    },
     'callbacks': {
         'on_left': 'toggle_menu'
     }
@@ -31,8 +39,26 @@ VALIDATION_SCHEMA = {
     },
     'container_padding': {
         'type': 'dict',
-        'default': DEFAULTS['container_padding'],
-        'required': False
+        'required': False,
+        'schema': {
+            'top': {
+                'type': 'integer',
+                'default': DEFAULTS['container_padding']['top']
+            },
+            'left': {
+                'type': 'integer',
+                'default': DEFAULTS['container_padding']['left']
+            },
+            'bottom': {
+                'type': 'integer',
+                'default': DEFAULTS['container_padding']['bottom']
+            },
+            'right': {
+                'type': 'integer',
+                'default': DEFAULTS['container_padding']['right']
+            }
+        },
+        'default': DEFAULTS['container_padding']
     },
     'power_menu': {
         'type': 'boolean',
@@ -47,6 +73,21 @@ VALIDATION_SCHEMA = {
     'blur': {
         'type': 'boolean',
         'default': DEFAULTS['blur'],
+        'required': False
+    },
+    'round_corners': {
+        'type': 'boolean',
+        'default': DEFAULTS['round_corners'],
+        'required': False
+    },
+    'round_corners_type': {
+        'type': 'string',
+        'default': DEFAULTS['round_corners_type'],
+        'required': False
+    },
+    'border_color': {
+        'type': 'string',
+        'default': DEFAULTS['border_color'],
         'required': False
     },
     'alignment': {
@@ -78,6 +119,25 @@ VALIDATION_SCHEMA = {
             'task_manager': {'type': 'string', 'default': DEFAULTS['menu_labels']['task_manager']}
         },
         'default': DEFAULTS['menu_labels']
+    },
+    'animation': {
+        'type': 'dict',
+        'required': False,
+        'schema': {
+            'enabled': {
+                'type': 'boolean',
+                'default': DEFAULTS['animation']['enabled']
+            },
+            'type': {
+                'type': 'string',
+                'default': DEFAULTS['animation']['type']
+            },
+            'duration': {
+                'type': 'integer',
+                'default': DEFAULTS['animation']['duration']
+            }
+        },
+        'default': DEFAULTS['animation']
     },
     'callbacks': {
         'required': False,

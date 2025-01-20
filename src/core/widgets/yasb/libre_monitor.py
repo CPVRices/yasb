@@ -9,7 +9,7 @@ from PyQt6.QtNetwork import QAuthenticator, QNetworkAccessManager, QNetworkReque
 from core.validation.widgets.yasb.libre_monitor import VALIDATION_SCHEMA
 from core.widgets.base import BaseWidget
 from urllib.parse import quote
-
+from core.utils.widgets.animation_manager import AnimationManager
 
 class LibreHardwareMonitorWidget(BaseWidget):
     validation_schema = VALIDATION_SCHEMA
@@ -34,6 +34,8 @@ class LibreHardwareMonitorWidget(BaseWidget):
             server_port: int,
             server_username: str,
             server_password: str,
+            animation: dict[str, str],
+            container_padding: dict[str, int],
             callbacks: dict,
     ):
         super().__init__(update_interval, class_name=class_name)
@@ -55,11 +57,12 @@ class LibreHardwareMonitorWidget(BaseWidget):
         self._server_port = server_port
         self._server_username = server_username
         self._server_password = server_password
-
+        self._animation = animation
+        self._padding = container_padding
         # UI
         self._widget_container_layout = QHBoxLayout()
         self._widget_container_layout.setSpacing(0)
-        self._widget_container_layout.setContentsMargins(0, 0, 0, 0)
+        self._widget_container_layout.setContentsMargins(self._padding['left'],self._padding['top'],self._padding['right'],self._padding['bottom'])
 
         self._widget_container = QWidget()
         self._widget_container.setLayout(self._widget_container_layout)
@@ -98,6 +101,8 @@ class LibreHardwareMonitorWidget(BaseWidget):
 
     def _toggle_label(self):
         """Toggle between main and alt labels"""
+        if self._animation['enabled']:
+            AnimationManager.animate(self, self._animation['type'], self._animation['duration'])
         self._show_alt_label = not self._show_alt_label
         for widget in self._widgets:
             widget.setVisible(not self._show_alt_label)

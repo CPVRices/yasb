@@ -11,6 +11,7 @@ from core.utils.win32.utilities import get_hwnd_info
 from PIL import Image
 import win32gui
 from core.utils.win32.app_icons import get_window_icon
+from core.utils.widgets.animation_manager import AnimationManager
 
 IGNORED_TITLES = ['', ' ', 'FolderView', 'Program Manager', 'python3', 'pythonw3', 'YasbBar', 'Search', 'Start', 'yasb']
 IGNORED_CLASSES = ['WorkerW', 'TopLevelWindowForOverflowXamlIsland', 'Shell_TrayWnd', 'Shell_SecondaryTrayWnd']
@@ -47,8 +48,10 @@ class ActiveWindowWidget(BaseWidget):
             label_icon_size: int,
             ignore_window: dict[str, list[str]],
             monitor_exclusive: bool,
+            animation: dict[str, str],
             max_length: int,
-            max_length_ellipsis: str
+            max_length_ellipsis: str,
+            container_padding: dict[str, int],
     ):
         super().__init__(class_name="active-window-widget")
         self._win_info = None
@@ -65,11 +68,12 @@ class ActiveWindowWidget(BaseWidget):
         self._max_length_ellipsis = max_length_ellipsis
         self._event_service = EventService()
         self._update_retry_count = 0
-
+        self._animation = animation
+        self._padding = container_padding
          # Construct container
         self._widget_container_layout: QHBoxLayout = QHBoxLayout()
         self._widget_container_layout.setSpacing(0)
-        self._widget_container_layout.setContentsMargins(0, 0, 0, 0)
+        self._widget_container_layout.setContentsMargins(self._padding['left'],self._padding['top'],self._padding['right'],self._padding['bottom'])
         # Initialize container
         self._widget_container: QWidget = QWidget()
         self._widget_container.setLayout(self._widget_container_layout)
@@ -138,6 +142,8 @@ class ActiveWindowWidget(BaseWidget):
             
         
     def _toggle_title_text(self) -> None:
+        if self._animation['enabled']:
+            AnimationManager.animate(self, self._animation['type'], self._animation['duration'])
         self._show_alt = not self._show_alt
         self._active_label = self._label_alt if self._show_alt else self._label
         self._update_text()

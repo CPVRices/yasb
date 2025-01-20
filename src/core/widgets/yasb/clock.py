@@ -7,7 +7,7 @@ from PyQt6.QtCore import Qt
 from datetime import datetime
 from tzlocal import get_localzone_name
 from itertools import cycle
-
+from core.utils.widgets.animation_manager import AnimationManager
 
 class ClockWidget(BaseWidget):
     validation_schema = VALIDATION_SCHEMA
@@ -20,6 +20,8 @@ class ClockWidget(BaseWidget):
             tooltip: bool,
             update_interval: int,
             timezones: list[str],
+            animation: dict[str, str],
+            container_padding: dict[str, int],
             callbacks: dict[str, str],
     ):
         super().__init__(update_interval, class_name="clock-widget")
@@ -29,8 +31,9 @@ class ClockWidget(BaseWidget):
         self._timezones = cycle(timezones if timezones else [get_localzone_name()])
         self._active_datetime_format_str = ''
         self._active_datetime_format = None
-
+        self._animation = animation
         self._label_content = label
+        self._padding = container_padding
         self._label_alt_content = label_alt
         if self._locale:
             import locale
@@ -39,7 +42,7 @@ class ClockWidget(BaseWidget):
         # Construct container
         self._widget_container_layout: QHBoxLayout = QHBoxLayout()
         self._widget_container_layout.setSpacing(0)
-        self._widget_container_layout.setContentsMargins(0, 0, 0, 0)
+        self._widget_container_layout.setContentsMargins(self._padding['left'],self._padding['top'],self._padding['right'],self._padding['bottom'])
         # Initialize container
         self._widget_container: QWidget = QWidget()
         self._widget_container.setLayout(self._widget_container_layout)
@@ -63,8 +66,11 @@ class ClockWidget(BaseWidget):
         self._next_timezone()
         self._update_label()
         self.start_timer()
-
+    
+        
     def _toggle_label(self):
+        if self._animation['enabled']:
+            AnimationManager.animate(self, self._animation['type'], self._animation['duration'])
         self._show_alt_label = not self._show_alt_label
         for widget in self._widgets:
             widget.setVisible(not self._show_alt_label)
@@ -89,8 +95,9 @@ class ClockWidget(BaseWidget):
                     label.setProperty("class", class_result)
                 else:
                     label = QLabel(part)
-                    label.setProperty("class", "label") 
-                label.setAlignment(Qt.AlignmentFlag.AlignCenter)    
+                    label.setProperty("class", "label")
+                label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                label.setCursor(Qt.CursorShape.PointingHandCursor)
                 self._widget_container_layout.addWidget(label)
                 widgets.append(label)
                 if is_alt:
