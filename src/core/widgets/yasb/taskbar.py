@@ -13,6 +13,7 @@ from core.utils.widgets.animation_manager import AnimationManager
 from PIL import Image
 import win32gui
 import win32con
+import atexit
 
 try:
     from core.utils.win32.event_listener import SystemEventListener
@@ -93,6 +94,13 @@ class TaskbarWidget(BaseWidget):
         self._debounce_timer_foreground.timeout.connect(self._process_debounced_foreground_event)
         self._debounced_foreground_event = None
 
+        if QApplication.instance():
+            QApplication.instance().aboutToQuit.connect(self._stop_events)
+        atexit.register(self._stop_events)
+
+    def _stop_events(self) -> None:
+        self._event_service.clear()
+ 
     def _on_update_event(self, hwnd: int, event: WinEvent) -> None:
         """
         Note: This is probably not the best way to do this, but debouncing the events is the only way to prevent high CPU usage.

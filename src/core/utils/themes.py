@@ -128,13 +128,15 @@ class ThemeCard(QFrame):
         layout.addLayout(top_layout)
 
         # Author label
-        author = QLabel(f"author <a style=\"color:#0078D4;text-decoration:none\" href='{self.theme_data['homepage']}'>{self.theme_data['author']}</a>")
+        homepage = self.theme_data['homepage'] if self.theme_data['homepage'] else f'https://github.com/{self.theme_data['author']}'
+        author = QLabel(f"author <a style=\"color:#0078D4;font-weight:500;text-decoration:none\" href='{homepage}'>{self.theme_data['author']}</a>")
         author.setFont(QFont('Segoe UI', 10))
         author.setOpenExternalLinks(True)
         layout.addWidget(author)
 
         # Description label
         description = QLabel(self.theme_data['description'])
+        description.setWordWrap(True)
         description.setFont(QFont('Segoe UI', 10))
         opacity_effect = QGraphicsOpacityEffect()
         opacity_effect.setOpacity(0.75)
@@ -286,16 +288,15 @@ class ThemeCard(QFrame):
         # Show the dialog and check the user's response
         if dialog.exec() == QDialog.DialogCode.Accepted:
             try:
-                subprocess.run(["yasbc", "stop"], creationflags=subprocess.CREATE_NO_WINDOW)
+                subprocess.run(["yasbc", "stop"], creationflags=subprocess.CREATE_NO_WINDOW, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 # Define the URLs for the files
                 base_url = f"https://raw.githubusercontent.com/amnweb/yasb-themes/main/themes/{self.theme_data['id']}"
                 config_url = f"{base_url}/config.yaml"
                 styles_url = f"{base_url}/styles.css"
 
-                # Define the destination paths
-                home_dir = os.path.expanduser("~")
-                config_path = os.path.join(home_dir, ".config", "yasb", "config.yaml")
-                styles_path = os.path.join(home_dir, ".config", "yasb", "styles.css")
+                config_home = os.getenv('YASB_CONFIG_HOME') if os.getenv('YASB_CONFIG_HOME') else os.path.join(os.path.expanduser("~"), ".config", "yasb")
+                config_path = os.path.join(config_home, "config.yaml")
+                styles_path = os.path.join(config_home, "styles.css")
 
                 # Create the directory if it doesn't exist
                 os.makedirs(os.path.dirname(config_path), exist_ok=True)
@@ -305,13 +306,13 @@ class ThemeCard(QFrame):
                 styles_response.raise_for_status()
                 with open(styles_path, 'wb') as styles_file:
                     styles_file.write(styles_response.content)
-                    
+
                 # Download and save the config.yaml file
                 config_response = requests.get(config_url)
                 config_response.raise_for_status()
                 with open(config_path, 'wb') as config_file:
                     config_file.write(config_response.content)
-                subprocess.run(["yasbc", "start"], creationflags=subprocess.CREATE_NO_WINDOW)
+                subprocess.run(["yasbc", "start"], creationflags=subprocess.CREATE_NO_WINDOW, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             except Exception as e:
                 QMessageBox.critical(self, 'Error', f"Failed to install theme: {str(e)}")
 
@@ -342,12 +343,13 @@ class ThemeViewer(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
 
         # Add the placeholder label
-        self.placeholder_label = QLabel("<span style='font-weight:bold'>YASB</span> Reborn")
+        self.placeholder_label = QLabel("<span style='font-weight:700'>YASB</span> Reborn")
         self.placeholder_label.setFont(QFont('Segoe UI', 64, QFont.Weight.Normal))
         self.placeholder_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.placeholder_label)
 
-        self.backup_info = QLabel("Backup your current theme before installing a new one. You can do this by copying the <b>config.yaml</b> and <b>styles.css</b> files from the <b><i>.config/yasb</i></b> directory to a safe location.")
+        config_home = os.getenv('YASB_CONFIG_HOME') if os.getenv('YASB_CONFIG_HOME') else os.path.join(os.path.expanduser("~"), ".config", "yasb")
+        self.backup_info = QLabel(f"Backup your current theme before installing a new one. You can do this by copying the <b>config.yaml</b> and <b>styles.css</b> files from the <b><i>{config_home}</i></b> directory to a safe location.")
         self.backup_info.setWordWrap(True)
         self.backup_info.setStyleSheet("color:#fff; background-color: rgba(166, 16, 48, 0.3);border-radius:6px;border:1px solid rgba(166, 16, 48, 0.5);padding:4px 8px;font-size:11px;font-family:'Segoe UI';margin:14px 20px 0 14px")
         self.backup_info.hide()

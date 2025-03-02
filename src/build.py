@@ -31,20 +31,26 @@ build_options = {
         'core.widgets.yasb.brightness',
         'core.widgets.yasb.update_check',
         'core.widgets.yasb.windows_desktops',
+        'core.widgets.yasb.server_monitor',
+        'core.widgets.yasb.notifications',
         'core.widgets.yasb.home',
+        'core.widgets.yasb.cava',
         'core.widgets.komorebi.active_layout',
-        'core.widgets.komorebi.workspaces'
+        'core.widgets.komorebi.workspaces',
+        'core.widgets.glazewm.tiling_direction',
+        'core.widgets.glazewm.workspaces'
     ],
-
     "silent_level": 1,
     "silent": True,
-    "excludes": ['PySide6','pydoc_data','email','tkinter','PyQt5','PySide2'],
+    "excludes": ['PySide6','pydoc_data','email','tkinter','PyQt5','PySide2','unittest'],
+    "zip_exclude_packages": ["*"],
     "build_exe": "dist",
     "include_msvcr": True,
     "includes": ["colorama"],
     "optimize": 1,
     "include_files": [
             ("assets/images/app_icon.png","lib/assets/images/app_icon.png"),
+            ("assets/images/app_transparent.png","lib/assets/images/app_transparent.png"),
             ("config.yaml","config.yaml"),
             ("styles.css","styles.css")
         ]

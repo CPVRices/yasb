@@ -65,11 +65,12 @@ class DiskWidget(BaseWidget):
         self.callback_right = callbacks['on_right']
         self.callback_middle = callbacks['on_middle']
         self.callback_timer = "update_label"
-        if not self._group_label['enabled']:
-            self.start_timer()
+        self.start_timer()
         
 
     def _toggle_label(self):
+        if self._animation['enabled']:
+            AnimationManager.animate(self, self._animation['type'], self._animation['duration'])
         self._show_alt_label = not self._show_alt_label
         for widget in self._widgets:
             widget.setVisible(not self._show_alt_label)
@@ -78,10 +79,9 @@ class DiskWidget(BaseWidget):
         self._update_label()
         
     def _toggle_group(self):
-        if self._group_label['enabled']:
-            if self._animation['enabled']:
-                AnimationManager.animate(self, self._animation['type'], self._animation['duration'])
-            self.show_group_label()
+        if self._animation['enabled']:
+            AnimationManager.animate(self, self._animation['type'], self._animation['duration'])
+        self.show_group_label()
         
     def _create_dynamically_label(self, content: str, content_alt: str):
         def process_content(content, is_alt=False):
@@ -102,8 +102,7 @@ class DiskWidget(BaseWidget):
                     label = QLabel(part)
                     label.setProperty("class", "label")
                 label.setAlignment(Qt.AlignmentFlag.AlignCenter)  
-                if self._group_label['enabled']:
-                    label.setCursor(Qt.CursorShape.PointingHandCursor)
+                label.setCursor(Qt.CursorShape.PointingHandCursor)
                 self._widget_container_layout.addWidget(label)
                 widgets.append(label)
                 if is_alt:

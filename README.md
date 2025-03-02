@@ -59,6 +59,10 @@ for more themes visit [yasb-themes](https://github.com/amnweb/yasb-themes)
 ![Theme Catppuccin Mocha](demo/demo.png)
 ![Theme Catppuccin Mocha](demo/demo2.png)
 
+https://github.com/user-attachments/assets/aab8d8e8-248f-46a1-919c-9b0601236ac1
+
+
+
 > [!NOTE]  
 > This repository is updated on a regular basis; when you update files, always check [styles.css](src/styles.css) and [config.yaml](src/config.yaml) for new features and changes; otherwise, your config can be broken.
 
@@ -70,10 +74,13 @@ for more themes visit [yasb-themes](https://github.com/amnweb/yasb-themes)
 - **[Battery](https://github.com/amnweb/yasb/wiki/(Widget)-Battery)**: Displays the current battery status.
 - **[Bluetooth](https://github.com/amnweb/yasb/wiki/(Widget)-Bluetooth)**: Shows the current Bluetooth status and connected devices.
 - **[Brightness](https://github.com/amnweb/yasb/wiki/(Widget)-Brightness)**: Displays and change the current brightness level.
+- **[Cava](https://github.com/amnweb/yasb/wiki/(Widget)-Cava)**: Displays audio visualizer using Cava.
 - **[CPU](https://github.com/amnweb/yasb/wiki/(Widget)-CPU)**: Shows the current CPU usage.
 - **[Clock](https://github.com/amnweb/yasb/wiki/(Widget)-Clock)**: Displays the current time and date.
 - **[Custom](https://github.com/amnweb/yasb/wiki/(Widget)-Custom)**: Create a custom widget.
 - **[Github](https://github.com/amnweb/yasb/wiki/(Widget)-Github)**: Shows notifications from GitHub.
+- **[GlazeWM Workspaces](https://github.com/amnweb/yasb/wiki/(Widget)-GlazeWM-Workspaces)**: GlazeWM workspaces widget.
+- **[GlazeWM Tiling Direction](https://github.com/amnweb/yasb/wiki/(Widget)-GlazeWM-Tiling-Direction)**: GlazeWM tiling direction widget.
 - **[Home](https://github.com/amnweb/yasb/wiki/(Widget)-Home)**: A customizable home widget menu.
 - **[Disk](https://github.com/amnweb/yasb/wiki/(Widget)-Disk)**: Displays disk usage information.
 - **[Language](https://github.com/amnweb/yasb/wiki/(Widget)-Language)**: Shows the current input language.
@@ -81,7 +88,9 @@ for more themes visit [yasb-themes](https://github.com/amnweb/yasb-themes)
 - **[Media](https://github.com/amnweb/yasb/wiki/(Widget)-Media)**: Displays media controls and information.
 - **[Memory](https://github.com/amnweb/yasb/wiki/(Widget)-Memory)**: Shows current memory usage.
 - **[Microphone](https://github.com/amnweb/yasb/wiki/(Widget)-Microphone)**: Displays the current microphone status.
+- **[Notifications](https://github.com/amnweb/yasb/wiki/(Widget)-Notifications)**: Shows the number of notifications from Windows.
 - **[OBS](https://github.com/amnweb/yasb/wiki/(Widget)-Obs)**: Integrates with OBS Studio to show recording status.
+- **[Server Monitor](https://github.com/amnweb/yasb/wiki/(Widget)-Server-Monitor)**: Monitors server status.
 - **[Traffic](https://github.com/amnweb/yasb/wiki/(Widget)-Traffic)**: Displays network traffic information.
 - **[Taskbar](https://github.com/amnweb/yasb/wiki/(Widget)-Taskbar)**: A customizable taskbar for launching applications.
 - **[Power Menu](https://github.com/amnweb/yasb/wiki/(Widget)-Power-Menu)**: A menu for power options.

@@ -13,7 +13,8 @@ from PyQt6.QtCore import Qt, QTimer, QPoint
 from PyQt6.QtGui import QPixmap
 from core.utils.utilities import PopupWidget
 from core.utils.widgets.animation_manager import AnimationManager
- 
+from settings import DEBUG
+
 class WeatherWidget(BaseWidget):
     validation_schema = VALIDATION_SCHEMA
 
@@ -26,6 +27,7 @@ class WeatherWidget(BaseWidget):
             location: str,
             api_key: str,
             units: str,
+            show_alerts: bool,
             weather_card: dict[str, str],
             callbacks: dict[str, str],
             icons: dict[str, str],
@@ -39,16 +41,21 @@ class WeatherWidget(BaseWidget):
         self._hide_decimal = hide_decimal
         self._icons = icons
         self._api_key = api_key if api_key != 'env' else os.getenv('YASB_WEATHER_API_KEY')
-        self.api_url = f"http://api.weatherapi.com/v1/forecast.json?key={self._api_key}&q={urllib.parse.quote(self._location)}&days=3&aqi=no&alerts=no"
+        if not self._api_key or not self._location:
+            logging.error("API key or location is missing. Please provide a valid API key and location.")
+            self.hide()
+            return
+        self.api_url = f"http://api.weatherapi.com/v1/forecast.json?key={self._api_key}&q={urllib.parse.quote(self._location)}&days=3&aqi=no&alerts=yes"
         self._units = units
+        self._show_alerts = show_alerts
         self._padding = container_padding
         # Store weather data
         self.weather_data = None
         self._show_alt_label = False
         self._animation = animation
-        
         self._weather_card = weather_card
         self._icon_cache = dict()
+
         # Construct container
         self._widget_container_layout: QHBoxLayout = QHBoxLayout()
         self._widget_container_layout.setSpacing(0)
@@ -120,8 +127,20 @@ class WeatherWidget(BaseWidget):
         today_label1.setProperty("class", "label")
         today_label1.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
+        today_label2 = QLabel(
+            f"{self.weather_data['{alert_title}']}"
+            f"{'<br>Alert expires ' + self.weather_data['{alert_end_date}'] if self.weather_data['{alert_end_date}'] else ''}"
+            f"<br>{self.weather_data['{alert_desc}']}"
+        )
+        today_label2.setProperty("class", "label arert")
+        today_label2.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        today_label2.setWordWrap(True)
+        
+        
         layout_today.addWidget(today_label0)
         layout_today.addWidget(today_label1)
+        if self._show_alerts and self.weather_data['{alert_title}'] and self.weather_data['{alert_desc}']:
+            layout_today.addWidget(today_label2)
  
         # Create frames for each day
         frame_day0 = QWidget()
@@ -144,7 +163,7 @@ class WeatherWidget(BaseWidget):
             if (self.weather_data['{day0_icon}']) in self._icon_cache:
                 icon_data_day0 = self._icon_cache[self.weather_data['{day0_icon}']]
             else:
-                icon_data_day0 = urllib.request.urlopen(self.weather_data['{day0_icon}']).read()
+                icon_data_day0 = urllib.request.urlopen(self.weather_data['{day0_icon}'], timeout=2).read()
             pixmap_day0 = QPixmap()
             pixmap_day0.loadFromData(icon_data_day0)
             scaled_pixmap_day0 = pixmap_day0.scaledToHeight(self._weather_card['icon_size'], Qt.TransformationMode.SmoothTransformation)
@@ -165,7 +184,7 @@ class WeatherWidget(BaseWidget):
             if (self.weather_data['{day1_icon}']) in self._icon_cache:
                 icon_data_day1 = self._icon_cache[self.weather_data['{day1_icon}']]
             else:
-                icon_data_day1 = urllib.request.urlopen(self.weather_data['{day1_icon}']).read()
+                icon_data_day1 = urllib.request.urlopen(self.weather_data['{day1_icon}'], timeout=2).read()
             pixmap_day1 = QPixmap()
             pixmap_day1.loadFromData(icon_data_day1)
             scaled_pixmap_day1 = pixmap_day1.scaledToHeight(self._weather_card['icon_size'], Qt.TransformationMode.SmoothTransformation)
@@ -185,7 +204,7 @@ class WeatherWidget(BaseWidget):
             if (self.weather_data['{day2_icon}']) in self._icon_cache:
                 icon_data_day2 = self._icon_cache[self.weather_data['{day2_icon}']]
             else:
-                icon_data_day2 = urllib.request.urlopen(self.weather_data['{day2_icon}']).read()
+                icon_data_day2 = urllib.request.urlopen(self.weather_data['{day2_icon}'], timeout=2).read()
             pixmap_day2 = QPixmap()
             pixmap_day2.loadFromData(icon_data_day2)
             scaled_pixmap_day2 = pixmap_day2.scaledToHeight(self._weather_card['icon_size'], Qt.TransformationMode.SmoothTransformation)
@@ -276,6 +295,8 @@ class WeatherWidget(BaseWidget):
         if self.weather_data is None:
             logging.warning("Weather data is not yet available.")
             return
+        # if DEBUG:
+        #     logging.debug(f"Weather data: {self.weather_data}")
         active_widgets = self._show_alt_label and self._widgets_alt or self._widgets
         active_label_content = self._show_alt_label and self._label_alt_content or self._label_content
         label_parts = re.split(r'(<span.*?>.*?</span>)', active_label_content)
@@ -314,9 +335,16 @@ class WeatherWidget(BaseWidget):
             logging.exception(f"Failed to update label: {e}")
 
 
-    def _convert_epoch_to_datetime(self, epoch: int):
-        return datetime.fromtimestamp(epoch).strftime("%B %d")
- 
+    def _format_date_string(self, date_str):
+        date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+        return date_obj.strftime("%B %d")
+    
+    def _format_alert_datetime(self, iso_datetime):
+        if iso_datetime is None:
+            return "Unknown"
+        dt = datetime.fromisoformat(iso_datetime)
+        return dt.strftime("%B %d, %Y at %H:%M")
+
     def _format_temp(self, temp_f, temp_c):
         temp = temp_f if self._units == 'imperial' else temp_c
         value = int(temp) if self._hide_decimal else temp
@@ -329,7 +357,6 @@ class WeatherWidget(BaseWidget):
         return f"{metric_val} {metric_unit}"
     
     def fetch_weather_data(self):
-        # Start a new thread to fetch weather data
         threading.Thread(target=self._get_weather_data).start()
 
     def _get_weather_data(self):
@@ -347,6 +374,7 @@ class WeatherWidget(BaseWidget):
             request = urllib.request.Request(api_url, headers=headers)
             with urllib.request.urlopen(request) as response:
                 weather_data = json.loads(response.read())
+                alerts = weather_data['alerts']
                 current = weather_data['current']
                 forecast = weather_data['forecast']['forecastday'][0]['day']
                 forecast1 = weather_data['forecast']['forecastday'][1]
@@ -365,6 +393,19 @@ class WeatherWidget(BaseWidget):
                     conditions_data = "snowyIcy"
                 icon_string = f"{conditions_data}{'Day' if current['is_day'] == 1 else 'Night'}".strip()
 
+                # Load icons into cache for current and future forecasts if not already cached
+                # We will try to load the images for 1sec, if it fails we will try again when popup is opened
+                img_icon_keys = [f'http:{day["condition"]["icon"]}' for day in [forecast] + [forecast1["day"], forecast2["day"]]]
+                for key in img_icon_keys:
+                    if key not in self._icon_cache:
+                        try:
+                            with urllib.request.urlopen(key, timeout=1) as icon_response:
+                                self._icon_cache[key] = icon_response.read()
+                        except urllib.error.URLError as e:
+                            logging.warning(f"Could not load icon {key}: {e}")
+                        except Exception as e:
+                            logging.warning(f"An unexpected error occurred while loading icon {key}: {e}")
+
                 return {
                     # Current conditions
                     '{temp}':      self._format_temp(current['temp_f'], current['temp_c']),
@@ -378,6 +419,10 @@ class WeatherWidget(BaseWidget):
                     
                     # Location and conditions
                     '{location}':       weather_data['location']['name'],
+                    '{location_region}': weather_data['location']['region'],
+                    '{location_country}': weather_data['location']['country'],
+                    '{time_zone}':      weather_data['location']['tz_id'],
+                    '{localtime}':      weather_data['location']['localtime'],
                     '{conditions}':     conditions_data,
                     '{condition_text}': current['condition']['text'],
                     '{is_day}':        current['is_day'],
@@ -399,15 +444,20 @@ class WeatherWidget(BaseWidget):
                     '{uv}':       current['uv'],
                     
                     # Future forecasts
-                    '{day1_name}':     self._convert_epoch_to_datetime(forecast1['date_epoch']),
+                    '{day1_name}':     self._format_date_string(forecast1['date']),
                     '{day1_min_temp}': self._format_temp(forecast1['day']['mintemp_f'], forecast1['day']['mintemp_c']),
                     '{day1_max_temp}': self._format_temp(forecast1['day']['maxtemp_f'], forecast1['day']['maxtemp_c']),
                     '{day1_icon}':     f'http:{forecast1["day"]["condition"]["icon"]}',
                     
-                    '{day2_name}':     self._convert_epoch_to_datetime(forecast2['date_epoch']),
+                    '{day2_name}':     self._format_date_string(forecast2['date']),
                     '{day2_min_temp}': self._format_temp(forecast2['day']['mintemp_f'], forecast2['day']['mintemp_c']),
                     '{day2_max_temp}': self._format_temp(forecast2['day']['maxtemp_f'], forecast2['day']['maxtemp_c']),
-                    '{day2_icon}':     f'http:{forecast2["day"]["condition"]["icon"]}'
+                    '{day2_icon}':     f'http:{forecast2["day"]["condition"]["icon"]}',
+                    
+                    # Alerts
+                    '{alert_title}':    alerts['alert'][0]['headline'] if alerts['alert'] and alerts['alert'][0]['headline'] else None,
+                    '{alert_desc}':     alerts['alert'][0]['desc'] if alerts['alert'] and alerts['alert'][0]['desc'] else None,
+                    '{alert_end_date}':    self._format_alert_datetime(alerts['alert'][0]['expires']) if alerts['alert'] and alerts['alert'][0]['expires'] else None,
                 }
         except (urllib.error.URLError, json.JSONDecodeError) as e:
             logging.error(f"Error fetching weather data: {e}")
@@ -416,6 +466,10 @@ class WeatherWidget(BaseWidget):
                 '{min_temp}': 'N/A',
                 '{max_temp}': 'N/A',
                 '{location}': 'N/A',
+                '{location_region}': 'N/A',
+                '{location_country}': 'N/A',
+                '{time_zone}': 'N/A',
+                '{localtime}': 'N/A,',
                 '{humidity}': 'N/A',
                 '{is_day}': 'N/A',
                 '{day0_icon}': 'N/A',
@@ -439,5 +493,8 @@ class WeatherWidget(BaseWidget):
                 '{day2_name}': 'N/A',
                 '{day2_min_temp}': 'N/A',
                 '{day2_max_temp}': 'N/A',
-                '{day2_icon}': 'N/A'         
+                '{day2_icon}': 'N/A',
+                '{alert_title}': None,
+                '{alert_desc}': None,
+                '{alert_end_date}': None
             }

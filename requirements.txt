@@ -1,7 +1,6 @@
 PyQt6==6.7.1
 PyQt6_sip
-Cerberus
-cssutils
+cerberus
 humanize
 psutil
 pytz
@@ -10,7 +9,6 @@ PyYAML
 tzlocal
 watchdog
 winsdk
-pyquery
 pycaw
 winshell
 pillow
@@ -18,4 +16,5 @@ qasync
 requests
 obs-websocket-py
 pyvda
+win11toast
 git+https://github.com/amnweb/screen_brightness_control.git

@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Union
 from core.validation.config import CONFIG_SCHEMA
 from core.utils.alert_dialog import raise_info_alert
-from cssutils import CSSParser
 from cerberus import Validator, schema
 from yaml.parser import ParserError
 from yaml import safe_load, dump
@@ -108,9 +107,9 @@ def get_stylesheet(show_error_dialog=False) -> Union[str, None]:
     try:
         css_processor = CSSProcessor(styles_path)
         css_content = css_processor.process()
-        parser = CSSParser(raiseExceptions=True, parseComments=False)
-        css_final = parser.parseString(css_content).cssText.decode('utf-8')
-        return css_final
+        #parser = CSSParser(raiseExceptions=True, parseComments=False)
+        #css_final = parser.parseString(css_content).cssText.decode('utf-8')
+        return css_content
 
     except SyntaxErr as e:
         logging.error(f"The file '{styles_path}' contains Syntax Error(s). Please fix:\n{str(e)}")

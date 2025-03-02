@@ -1,4 +1,6 @@
 import argparse
+import pywintypes
+import win32file
 import subprocess
 import sys
 import logging
@@ -16,10 +18,11 @@ import requests
 import tempfile
 from settings import BUILD_VERSION
 from colorama import just_fix_windows_console
+
 just_fix_windows_console()
 
 YASB_VERSION = BUILD_VERSION
-YASB_CLI_VERSION = "1.0.5"
+YASB_CLI_VERSION = "1.0.7"
 
 OS_STARTUP_FOLDER = os.path.join(os.environ['APPDATA'], r'Microsoft\Windows\Start Menu\Programs\Startup')
 INSTALLATION_PATH = os.path.abspath(os.path.join(__file__, "../../.."))
@@ -76,7 +79,34 @@ class CustomArgumentParser(argparse.ArgumentParser):
         sys.exit(2)
 
 class CLIHandler:
-        
+
+    def stop_or_reload_application(reload=False):
+        pipe_name = r'\\.\pipe\yasb_pipe_cli'
+        try:
+            pipe_handle = win32file.CreateFile(
+                pipe_name,
+                win32file.GENERIC_READ | win32file.GENERIC_WRITE,
+                0,
+                None,
+                win32file.OPEN_EXISTING,
+                0,
+                None
+            )
+            cmd = b'reload' if reload else b'stop'
+            win32file.WriteFile(pipe_handle, cmd)
+            _, response = win32file.ReadFile(pipe_handle, 64 * 1024)
+            if response.decode('utf-8').strip() != 'ACK':
+                print(f"Received unexpected response: {response.decode('utf-8').strip()}")
+            win32file.CloseHandle(pipe_handle)
+        except pywintypes.error as e:
+            # ERROR_FILE_NOT_FOUND can indicate the pipe doesn't exist
+            if e.args[0] == 2:
+                print("Failed to connect to YASB. Pipe not found. It may not be running.")
+            else:
+                print(f"Pipe error: {e}")
+        except Exception as e:
+            print(f"Error: {e}")
+
     def _enable_startup():
         shortcut_path = os.path.join(OS_STARTUP_FOLDER, SHORTCUT_FILENAME)
         try:
@@ -130,14 +160,13 @@ class CLIHandler:
             
         elif args.command == 'stop':
             print("Stop YASB...")
-            subprocess.run(["taskkill", "/f", "/im", "yasb.exe"], creationflags=subprocess.CREATE_NO_WINDOW)
+            CLIHandler.stop_or_reload_application()
             sys.exit(0)
             
         elif args.command == 'reload':
             if is_process_running("yasb.exe"):
                 print("Reload YASB...")
-                subprocess.run(["taskkill", "/f", "/im", "yasb.exe"], creationflags=subprocess.CREATE_NO_WINDOW)
-                subprocess.Popen(["yasb.exe"])
+                CLIHandler.stop_or_reload_application(reload=True)
             else:
                 print("YASB is not running. Reload aborted.")
             sys.exit(0)
@@ -166,7 +195,8 @@ class CLIHandler:
             sys.exit(0)    
             
         elif args.command == 'log':
-            log_file = os.path.join(os.path.expanduser("~"), ".config", "yasb", "yasb.log")
+            config_home = os.getenv('YASB_CONFIG_HOME') if os.getenv('YASB_CONFIG_HOME') else os.path.join(os.path.expanduser("~"), ".config", "yasb")
+            log_file = os.path.join(config_home, "yasb.log")
             if not os.path.exists(log_file):
                 print("Log file does not exist. Please restart YASB to generate logs.")
                 sys.exit(1)
@@ -354,17 +384,17 @@ class CLIUpdateHandler():
             subprocess.run(["taskkill", "/f", "/im", "yasb_themes.exe"], creationflags=subprocess.CREATE_NO_WINDOW)
 
         # Construct the uninstall command as a string
-        product_code = CLIUpdateHandler.get_installed_product_code()
-        if product_code is not None:
-            uninstall_command = f'msiexec /x {product_code} /passive'
-        else:
-            uninstall_command = ""
+        # product_code = CLIUpdateHandler.get_installed_product_code()
+        # if product_code is not None:
+        #     uninstall_command = f'msiexec /x {product_code} /passive'
+        # else:
+        #     uninstall_command = ""
             
         # Construct the install command as a string
         install_command = f'msiexec /i "{os.path.abspath(msi_path)}" /passive /norestart'
         run_after_command = f'"{EXE_PATH}"'
-        combined_command = f'{uninstall_command} && {install_command} && {run_after_command}'
-
+        #combined_command = f'{uninstall_command} && {install_command} && {run_after_command}'
+        combined_command = f'{install_command} && {run_after_command}'
         # Finally run update and restart the application
         subprocess.Popen(combined_command, shell=True)
         sys.exit(0)

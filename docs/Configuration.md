@@ -2,7 +2,7 @@
 
 The configuration uses the YAML file format and is named `config` or `config.yaml`.
 
-Valid directories for this file are `C:/Users/{username}/.config/yasb/` or path where YASB is Installed.
+Valid directories for this file are `C:/Users/{username}/.config/yasb/` or ENV variable `YASB_CONFIG_HOME` if set.
 A good starting point is the [default config](https://github.com/amnweb/yasb/blob/main/src/config.yaml).
 
 All valid options for the widgets are listed on the widgets page.
@@ -22,7 +22,7 @@ All valid options for the widgets are listed on the widgets page.
 | Option            | Type    | Default       | Description |
 |-------------------|---------|---------------|-------------|
 | `start_command`         | string | `"komorebic start --whkd"` | Start komorebi with --whkd and default config location. |
-| `stop_coommand`         | string    | `"komorebic stop --whkd"` | Stop komorebi. |
+| `stop_command`         | string    | `"komorebic stop --whkd"` | Stop komorebi. |
 | `reload_command`      | string  | `"komorebic reload-configuration"` | Reload komorebi configuration.|
 
 
@@ -35,7 +35,7 @@ All valid options for the widgets are listed on the widgets page.
 | `class_name`      | string  | `"yasb-bar"`  | The CSS class name for the status bar. |
 | `alignment`       | object  | `{position: "top", center: false}` | The alignment settings for the status bar. |
 | `blur_effect`     | object  | `{enabled: false, acrylic: false, dark_mode: false, round_corners: false, round_corners_type: 'normal', border_color: System}` | The blur effect settings for the status bar. |
-| `window_flags`    | object  | `{always_on_top: false, windows_app_bar: true}` | The window flags for the status bar. |
+| `window_flags`    | object  | `{always_on_top: false, windows_app_bar: true, hide_on_fullscreen: false}` | The window flags for the status bar. |
 | `dimensions`      | object  | `{width: "100%", height: 36}` | The dimensions of the status bar. |
 | `padding`         | object  | `{top: 4, left: 0, bottom: 4, right: 0}` | The padding for the status bar. |
 | `animation`       | object  | `{enabled: true, duration: 500}` | The animation settings for the status bar. Duration is in milliseconds. |
@@ -66,7 +66,7 @@ widgets:
 ```
 
 # Blur Options
-We used Windows API for blur, and because of this some parts are limited with the OS.
+We used the Windows API for blur, and because of this some parts are limited with the OS.
 
 `blur_effect.enabled` Will enable defaul blur.<br>
 `blur_effect.acrylic` Enable an acrylic blur effect behind a window. (Windows 10)<br>
@@ -75,4 +75,4 @@ We used Windows API for blur, and because of this some parts are limited with th
 `blur_effect.round_corners_type` Border type for bar can be `normal` and `small`. Default is `normal`.<br>
 `blur_effect.border_color` Border color for bar can be `None`, `System` or `Hex Color` `"#ff0000"`. (This applies to system round_corners and if blur_effect.round_corners is True.)
 
-> Most of this options are limited to Windows 11 only, and some options like border_color, round_corners,round_corners_type wont work on Windows 10.
+> Most of these options are limited to Windows 11 only, and some options like border_color, round_corners,round_corners_type won't work on Windows 10.
