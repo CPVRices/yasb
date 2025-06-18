@@ -8,14 +8,33 @@ A good starting point is the [default config](https://github.com/amnweb/yasb/blo
 All valid options for the widgets are listed on the widgets page.
 
 
- 
+# Environment Variables Support
+
+YASB supports loading environment variables from a `.env` file.  
+This allows you to securely store sensitive information (such as API keys or tokens) outside of your main `config.yaml`.
+
+- The `.env` file should be placed in your config directory:  
+  `C:/Users/{username}/.config/yasb/.env`  
+  or in the directory specified by the `YASB_CONFIG_HOME` environment variable.
+- Variables defined in `.env` can be referenced in your `config.yaml` by setting the value to `env` (for example, `api_key: env` or `api_key: "$env:YASB_WEATHER_API_KEY"`).
+- The `.env` file is loaded automatically on startup.
+
+**Example `.env` file:**
+```
+YASB_WEATHER_API_KEY=your_api_key_here
+YASB_GITHUB_TOKEN=your_github_token_here
+YASB_WEATHER_LOCATION=your_location_here
+# Some Qt settings
+QT_SCREEN_SCALE_FACTORS="1.25;1"
+QT_SCALE_FACTOR_ROUNDING_POLICY="PassThrough"
+```
+
 ## Status Bar Root Configuration
 | Option            | Type    | Default       | Description |
 |-------------------|---------|---------------|-------------|
 | `watch_stylesheet`         | boolean | `true`        | Reload bar when style is changed. |
 | `watch_config`         | boolean    | `true`        | Reload bar when config is changed. |
 | `debug`      | boolean  | `false`   | Enable debug mode to see more logs |
-| `hide_taskbar`      | boolean  | `false`   | Hide Windows taskbar from all screens. Note: for better performance set taskbar auto-hide. |
 
 
 ## Komorebi settings for tray menu
@@ -26,7 +45,6 @@ All valid options for the widgets are listed on the widgets page.
 | `reload_command`      | string  | `"komorebic reload-configuration"` | Reload komorebi configuration.|
 
 
-
 ## Status Bar Configuration
 | Option            | Type    | Default       | Description |
 |-------------------|---------|---------------|-------------|
@@ -34,12 +52,57 @@ All valid options for the widgets are listed on the widgets page.
 | `screens`         | list    | `['*']`       | The screens on which the status bar should be displayed. |
 | `class_name`      | string  | `"yasb-bar"`  | The CSS class name for the status bar. |
 | `alignment`       | object  | `{position: "top", center: false}` | The alignment settings for the status bar. |
-| `blur_effect`     | object  | `{enabled: false, acrylic: false, dark_mode: false, round_corners: false, round_corners_type: 'normal', border_color: System}` | The blur effect settings for the status bar. |
-| `window_flags`    | object  | `{always_on_top: false, windows_app_bar: true, hide_on_fullscreen: false}` | The window flags for the status bar. |
+| `blur_effect`     | object  | [See below](#blur-effect-configuration) | The blur effect settings for the status bar. |
+| `window_flags`    | object  | [See below](#window-flags-configuration) | The window flags for the status bar. |
 | `dimensions`      | object  | `{width: "100%", height: 36}` | The dimensions of the status bar. |
 | `padding`         | object  | `{top: 4, left: 0, bottom: 4, right: 0}` | The padding for the status bar. |
 | `animation`       | object  | `{enabled: true, duration: 500}` | The animation settings for the status bar. Duration is in milliseconds. |
-| `widgets`         | list  | `left[],center[],right[]` | Active widgets and position. |
+| `widgets`         | list  | `left[], center[], right[]` | Active widgets and position. |
+| `layouts`         | object  | [See below](#layouts-configuration) | Configuration for widget layouts in each section (left, center, right). |
+
+> **Note:**
+> `screens` can be specified as a list of monitor names. If you want the bar to appear on all screens, use `['*']`. To specify a single screen, use `['DELL P2419H (1)']` or a similar name based on your monitor setup. To show the bar only and always on the primary screen, use `['primary']`.
+
+### Blur Effect Configuration
+| Option            | Type    | Default       | Description |
+|-------------------|---------|---------------|-------------|
+| `enabled`         | boolean | `false`       | Whether the blur effect is enabled. |
+| `acrylic`         | boolean | `false`       | Whether to use an acrylic blur effect (Windows 10). |
+| `dark_mode`       | boolean | `false`       | Whether to enable dark mode and more shadow below the bar. |
+| `round_corners`   | boolean | `false`       | Whether to enable rounded corners for the bar. Note: This is only effective on Windows 11. |
+| `round_corners_type` | string | `'normal'` | The type of rounded corners, can be `normal` or `small`. Note: This is only effective on Windows 11. |
+| `border_color`    | string  | `'system'`   | The border color for the bar, can be `None`, `"system"`, or a hex color (e.g., `"#ff0000"`). Note: This is only effective on Windows 11. |
+
+
+### Window Flags Configuration
+| Option            | Type    | Default       | Description |
+|-------------------|---------|---------------|-------------|
+| `always_on_top`   | boolean | `false`       | Whether the status bar should always stay on top of other windows. |
+| `windows_app_bar` | boolean | `true`        | Whether the status bar should behave like a Windows app bar. |
+| `hide_on_fullscreen` | boolean | `false`    | Whether the status bar should hide when a window is in fullscreen mode. |
+| `auto_hide` | boolean | `false`    | Whether the status bar should auto-hide when not in use. |
+
+### Layouts Configuration
+Each section (left, center, right) can be configured with the following properties:
+
+| Option            | Type    | Default       | Description |
+|-------------------|---------|---------------|-------------|
+| `alignment`       | string  | Section-dependent | Widget alignment within section ("left", "center", "right") |
+| `stretch`         | boolean | `true`        | Whether widgets should stretch to fill available space |
+
+Example:
+```yaml
+layouts:
+  left:
+    alignment: "left"
+    stretch: true
+  center:
+    alignment: "center"
+    stretch: true
+  right:
+    alignment: "right"
+    stretch: true
+```
 
 # Multiple Bars Example
 > **Note:**
@@ -64,15 +127,3 @@ bars:
 widgets:
     ...
 ```
-
-# Blur Options
-We used the Windows API for blur, and because of this some parts are limited with the OS.
-
-`blur_effect.enabled` Will enable defaul blur.<br>
-`blur_effect.acrylic` Enable an acrylic blur effect behind a window. (Windows 10)<br>
-`blur_effect.dark_mode` Dark mode and more shadow below bar.<br>
-`blur_effect.round_corners` True or False, if set to True Windows will add radius. You can't set a custom value.<br>
-`blur_effect.round_corners_type` Border type for bar can be `normal` and `small`. Default is `normal`.<br>
-`blur_effect.border_color` Border color for bar can be `None`, `System` or `Hex Color` `"#ff0000"`. (This applies to system round_corners and if blur_effect.round_corners is True.)
-
-> Most of these options are limited to Windows 11 only, and some options like border_color, round_corners,round_corners_type won't work on Windows 10.

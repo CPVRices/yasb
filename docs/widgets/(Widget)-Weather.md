@@ -9,11 +9,13 @@
 | `show_alerts`   | boolean | `False`                                                                 | Whether to show weather alerts. |
 | `units`         | string  | `'metric'`                                                              | The units for the weather data. Can be `'metric'` or `'imperial'`. |
 | `api_key`       | string  | `'0'`                                                                   | The API key for accessing the weather service. |
-| `icons`         | dict    | `{ 'sunnyDay': '\ue30d', 'clearNight': '\ue32b', 'cloudyDay': '\ue312', 'cloudyNight': '\ue311', 'rainyDay': '\udb81\ude7e', 'rainyNight': '\udb81\ude7e', 'snowyIcyDay': '\udb81\udd98', 'snowyIcyNight': '\udb81\udd98', 'blizzard': '\uebaa', 'default': '\uebaa' }` | A dictionary of icons for different weather conditions. |
+| `icons`         | dict    | `{ 'sunnyDay': '\ue30d', 'clearNight': '\ue32b', 'cloudyDay': '\ue312', 'cloudyNight': '\ue311', 'rainyDay': '\udb81\ude7e', 'rainyNight': '\udb81\ude7e', 'snowyIcyDay': '\udb81\udd98', 'snowyIcyNight': '\udb81\udd98', 'blizzardDay': '\uebaa', 'default': '\uebaa' }` | A dictionary of icons for different weather conditions. |
 | `callbacks`     | dict    | `{ 'on_left': 'do_nothing', 'on_middle': 'do_nothing', 'on_right': 'do_nothing' }` | Callbacks for mouse events on the weather widget. |
-| `weather_card`  | dict    | `{ blur': True, 'round_corners': True, 'round_corners_type': 'normal', 'border_color': 'System', 'alignment': 'right', 'direction': 'down', 'distance': 6, 'icon_size': 64 }` | Configuration for the weather card popup display. Controls visibility, appearance, and positioning. |
+| `weather_card`  | dict    | `{ blur': True, 'round_corners': True, 'round_corners_type': 'normal', 'border_color': 'System', 'alignment': 'right', 'direction': 'down', 'offset_top': 6, 'offset_left': 0, 'icon_size': 64 }` | Configuration for the weather card popup display. Controls visibility, appearance, and positioning. |
 | `animation`         | dict    | `{'enabled': True, 'type': 'fadeInOut', 'duration': 200}`               | Animation settings for the widget.                                          |
 | `container_padding`  | dict | `{'top': 0, 'left': 0, 'bottom': 0, 'right': 0}`      | Explicitly set padding inside widget container. |
+| `container_shadow`   | dict   | `None`                  | Container shadow options.                       |
+| `label_shadow`         | dict   | `None`                  | Label shadow options.                 |
 
 ## Example Configuration
 
@@ -33,26 +35,35 @@ weather:
       on_left: "toggle_card"
       on_middle: "do_nothing"
       on_right: "toggle_label"
-    icons: 
+    icons:
       sunnyDay: "\ue30d"
       clearNight: "\ue32b"
-      cloudyDay: "\udb81\udd99"
+      cloudyDay: "\ue312"
       cloudyNight: "\ue311"
-      rainyDay: "\udb81\ude7e"
-      rainyNight: "\udb81\ude7e"
-      snowyIcyDay: "\udb81\udd98"
-      snowyIcyNight: "\udb81\udd98"
-      blizzard: "\uebaa"
+      rainyDay: "\ue308"
+      rainyNight: "\ue333"
+      snowyIcyDay: "\ue30a"
+      snowyIcyNight: "\ue335"
+      blizzardDay: "\udb83\udf36"
+      blizzardNight: "\udb83\udf36"
+      foggyDay: "\ue303"
+      foggyNight: "\ue346"
+      thunderstormDay: "\ue30f"
+      thunderstormNight: "\ue338"
       default: "\uebaa"
-    weather_card: 
+    weather_card:
       blur: True
       round_corners: True
       round_corners_type: "normal"
       border_color: "System"
       alignment: "right"
       direction: "down"
-      distance: 6
       icon_size: 64
+    label_shadow:
+      enabled: true
+      color: "black"
+      radius: 3
+      offset: [ 1, 1 ]
 ```
 
 ## Description of Options
@@ -73,11 +84,14 @@ weather:
   - **border_color:** Border color for weather card can be `None`, `System` or `Hex Color` `"#ff0000"`.
   - **alignment:** Alignment of the weather card. Possible values are `left`, `center`, and `right`.
   - **direction:** Direction of the weather card. Possible values are `up` and `down`.
-  - **distance:** Distance of the weather card from the widget.
+  - **offset_top:** Offset from the top of the widget in pixels.
+  - **offset_left:** Offset from the left of the widget in pixels.
   - **icon_size:** Size of the weather icon in pixels.
 - **callbacks:** A dictionary specifying the callbacks for mouse events. The keys are `on_left`, `on_middle`, and `on_right`, and the values are the names of the callback functions.
 - **animation:** A dictionary specifying the animation settings for the widget. It contains three keys: `enabled`, `type`, and `duration`. The `type` can be `fadeInOut` and the `duration` is the animation duration in milliseconds.
 - **container_padding**: Explicitly set padding inside widget container. Use this option to set padding inside the widget container. You can set padding for top, left, bottom and right sides of the widget container.
+- **container_shadow:** Container shadow options.
+- **label_shadow:** Label shadow options.
 
 ## Example Style
 ```css
@@ -86,13 +100,22 @@ weather:
 .weather-widget .label {}
 .weather-widget .label.alt {}
 .weather-widget .icon {}
+
+/* Individual weather icons */
+.weather-widget .icon.sunnyDay {}
+.weather-widget .icon.clearNight {}
 .weather-widget .icon.cloudyDay {}
-.weather-widget .icon.cloudyNight {} 
-.weather-widget .icon.rainyDay {} 
-.weather-widget .icon.rainyNight {} 
-.weather-widget .icon.snowyIcyDay {} 
-.weather-widget .icon.snowyIcyNight {} 
-.weather-widget .icon.blizzard {} 
+.weather-widget .icon.cloudyNight {}
+.weather-widget .icon.rainyDay {}
+.weather-widget .icon.rainyNight {}
+.weather-widget .icon.snowyIcyDay {}
+.weather-widget .icon.snowyIcyNight {}
+.weather-widget .icon.blizzardDay {}
+.weather-widget .icon.blizzardNight {}
+.weather-widget .icon.foggyDay {}
+.weather-widget .icon.foggyNight {}
+.weather-widget .icon.thunderstormDay {}
+.weather-widget .icon.thunderstormNight {}
 .weather-widget .icon.default {}
 
 /* Weather card style */
@@ -111,7 +134,7 @@ weather:
     font-size: 24px;
     font-weight: 700;
 }
-.weather-card-today .label.arert {
+.weather-card-today .label.alert {
     font-size: 12px;
     font-weight: 700;
     background-color: rgba(247, 199, 42, 0.05);

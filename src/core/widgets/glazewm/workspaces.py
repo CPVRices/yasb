@@ -1,12 +1,17 @@
 import logging
 import re
 from enum import StrEnum, auto
+from typing import Any, override
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QCursor
+from PyQt6.QtCore import (
+    Qt,
+    pyqtSlot,  # type: ignore
+)
+from PyQt6.QtGui import QCursor, QShowEvent, QWheelEvent
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QWidget
 
 from core.utils.glazewm.client import GlazewmClient, Monitor
+from core.utils.utilities import add_shadow
 from core.utils.win32.utilities import get_monitor_hwnd
 from core.validation.widgets.glazewm.workspaces import VALIDATION_SCHEMA
 from core.widgets.base import BaseWidget
@@ -23,7 +28,13 @@ else:
 class WorkspaceStatus(StrEnum):
     EMPTY = auto()
     POPULATED = auto()
-    ACTIVE = auto()
+    ACTIVE_EMPTY = auto()
+    ACTIVE_POPULATED = auto()
+
+
+def natural_sort_key(s: str, _nsre: re.Pattern[str] = re.compile(r"(\d+)")):
+    """Sorts a string in the format '1-2-3' in natural order."""
+    return [int(text) if text.isdigit() else text.lower() for text in _nsre.split(s)]
 
 
 class GlazewmWorkspaceButton(QPushButton):
@@ -34,6 +45,8 @@ class GlazewmWorkspaceButton(QPushButton):
         display_name: str | None = None,
         populated_label: str | None = None,
         empty_label: str | None = None,
+        active_populated_label: str | None = None,
+        active_empty_label: str | None = None,
     ):
         super().__init__()
         self.setProperty("class", "ws-btn")
@@ -42,26 +55,31 @@ class GlazewmWorkspaceButton(QPushButton):
         self.display_name = display_name
         self.populated_label = populated_label
         self.empty_label = empty_label
+        self.active_populated_label = active_populated_label
+        self.active_empty_label = active_empty_label
         self.is_displayed = False
         self.workspace_window_count = 0
         self.status = WorkspaceStatus.EMPTY
-        self.clicked.connect(self._activate_workspace)
+        self.clicked.connect(self._activate_workspace)  # type: ignore
         self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self._update_status()
 
-    def update(self):
+    def update_button(self):
         self._update_status()
         self._update_label()
         self.setProperty("class", f"ws-btn {self.status.value}")
         self.setStyleSheet("")
 
+    @pyqtSlot()
     def _activate_workspace(self):
         self.glazewm_client.activate_workspace(self.workspace_name)
 
     def _update_status(self):
-        if self.is_displayed:
-            self.status = WorkspaceStatus.ACTIVE
-        elif self.workspace_window_count > 0 and not self.is_displayed:
+        if self.is_displayed and self.workspace_window_count > 0:
+            self.status = WorkspaceStatus.ACTIVE_POPULATED
+        elif self.is_displayed:
+            self.status = WorkspaceStatus.ACTIVE_EMPTY
+        elif self.workspace_window_count > 0:
             self.status = WorkspaceStatus.POPULATED
         else:
             self.status = WorkspaceStatus.EMPTY
@@ -74,14 +92,18 @@ class GlazewmWorkspaceButton(QPushButton):
         # Label priority: YASB config -> display_name from GlazeWM -> name from GlazeWM
         populated_label = self.populated_label or self.display_name or self.workspace_name
         empty_label = self.empty_label or self.display_name or self.workspace_name
+        active_populated_label = self.active_populated_label or self.display_name or self.workspace_name
+        active_empty_label = self.active_empty_label or self.display_name or self.workspace_name
         # Replace placeholders if any exist
         populated_label = populated_label.format_map(replacements)
         empty_label = empty_label.format_map(replacements)
-        if self.status == WorkspaceStatus.ACTIVE:
-            if self.workspace_window_count > 0:
-                self.setText(populated_label)
-            else:
-                self.setText(empty_label)
+        active_populated_label = active_populated_label.format_map(replacements)
+        active_empty_label = active_empty_label.format_map(replacements)
+        if self.status == WorkspaceStatus.ACTIVE_POPULATED:
+            self.setText(active_populated_label)
+            self.setHidden(False)
+        elif self.status == WorkspaceStatus.ACTIVE_EMPTY:
+            self.setText(active_empty_label)
             self.setHidden(False)
         elif self.status == WorkspaceStatus.POPULATED:
             self.setText(populated_label)
@@ -93,29 +115,45 @@ class GlazewmWorkspaceButton(QPushButton):
 
 
 class GlazewmWorkspacesWidget(BaseWidget):
-    validation_schema = VALIDATION_SCHEMA
+    validation_schema: dict[str, Any] = VALIDATION_SCHEMA
 
     def __init__(
         self,
         offline_label: str,
         populated_label: str,
         empty_label: str,
+        active_populated_label: str,
+        active_empty_label: str,
         hide_empty_workspaces: bool,
         hide_if_offline: bool,
+        container_padding: dict,
         glazewm_server_uri: str,
+        container_shadow: dict[str, Any],
+        btn_shadow: dict[str, Any],
     ):
         super().__init__(class_name="glazewm-workspaces")
         self.label_offline = offline_label
         self.populated_label = populated_label
         self.empty_label = empty_label
+        self.active_populated_label = active_populated_label
+        self.active_empty_label = active_empty_label
         self.glazewm_server_uri = glazewm_server_uri
         self.hide_empty_workspaces = hide_empty_workspaces
         self.hide_if_offline = hide_if_offline
+        self._padding = container_padding
+        self.container_shadow = container_shadow
+        self.btn_shadow = btn_shadow
         self.workspaces: dict[str, GlazewmWorkspaceButton] = {}
+        self.monitor_handle: int | None = None
 
         self.workspace_container_layout = QHBoxLayout()
         self.workspace_container_layout.setSpacing(0)
-        self.workspace_container_layout.setContentsMargins(0, 0, 0, 0)
+        self.workspace_container_layout.setContentsMargins(
+            self._padding["left"],
+            self._padding["top"],
+            self._padding["right"],
+            self._padding["bottom"],
+        )
 
         self.workspace_container: QWidget = QWidget()
         self.workspace_container.setLayout(self.workspace_container_layout)
@@ -125,12 +163,10 @@ class GlazewmWorkspacesWidget(BaseWidget):
         self.offline_text = QLabel(self.label_offline)
         self.offline_text.setProperty("class", "offline-status")
 
+        add_shadow(self.workspace_container, self.container_shadow)
+
         self.widget_layout.addWidget(self.offline_text)
         self.widget_layout.addWidget(self.workspace_container)
-
-        self.offline_text.setVisible(True)
-
-        self.monitor_hwnd = get_monitor_hwnd(int(QWidget.winId(self)))
 
         self.glazewm_client = GlazewmClient(
             self.glazewm_server_uri,
@@ -139,17 +175,24 @@ class GlazewmWorkspacesWidget(BaseWidget):
                 "query monitors",
             ],
         )
-        self.glazewm_client.glazewm_connection_status.connect(self._update_connection_status)
-        self.glazewm_client.workspaces_data_processed.connect(self._update_workspaces)
+        self.glazewm_client.glazewm_connection_status.connect(self._update_connection_status)  # type: ignore
+        self.glazewm_client.workspaces_data_processed.connect(self._update_workspaces)  # type: ignore
+
+    @override
+    def showEvent(self, a0: QShowEvent | None):
+        super().showEvent(a0)
+        self.monitor_handle = get_monitor_hwnd(int(QWidget.winId(self)))
         self.glazewm_client.connect()
 
+    @pyqtSlot(bool)
     def _update_connection_status(self, status: bool):
         self.workspace_container.setVisible(status)
         self.offline_text.setVisible(not status if not self.hide_if_offline else False)
 
+    @pyqtSlot(list)
     def _update_workspaces(self, message: list[Monitor]):
         # Find the target monitor
-        current_mon = next((m for m in message if m.hwnd == self.monitor_hwnd), None)
+        current_mon = next((m for m in message if m.hwnd == self.monitor_handle), None)
         if not current_mon:
             return
 
@@ -162,16 +205,16 @@ class GlazewmWorkspacesWidget(BaseWidget):
                     display_name=workspace.display_name,
                     populated_label=self.populated_label,
                     empty_label=self.empty_label,
+                    active_populated_label=self.active_populated_label,
+                    active_empty_label=self.active_empty_label,
                 )
+                add_shadow(btn, self.btn_shadow)
 
             # Update workspace state
             btn.workspace_name = workspace.name
             btn.display_name = workspace.display_name
             btn.workspace_window_count = workspace.num_windows
             btn.is_displayed = workspace.is_displayed
-
-        def natural_sort_key(s, _nsre=re.compile(r"(\d+)")):
-            return [int(text) if text.isdigit() else text.lower() for text in _nsre.split(s)]
 
         # Insert the new widget if it's not present
         for i, ws_name in enumerate(sorted(self.workspaces.keys(), key=natural_sort_key)):
@@ -185,4 +228,44 @@ class GlazewmWorkspacesWidget(BaseWidget):
                 btn.is_displayed = False
                 btn.workspace_window_count = 0
                 btn.setHidden(self.hide_empty_workspaces)
-            btn.update()
+            btn.update_button()
+
+    def _get_active_workspace(self) -> GlazewmWorkspaceButton | None:
+        for btn in self.workspaces.values():
+            if btn.status in (WorkspaceStatus.ACTIVE_EMPTY, WorkspaceStatus.ACTIVE_POPULATED):
+                return btn
+        return None
+
+    def _get_next_workspace(self) -> GlazewmWorkspaceButton | None:
+        active_workspace = self._get_active_workspace()
+        if not active_workspace:
+            return None
+        active_index = list(self.workspaces.keys()).index(active_workspace.workspace_name)
+        next_index = (active_index + 1) % len(self.workspaces)
+        return self.workspaces[list(self.workspaces.keys())[next_index]]
+
+    def _get_prev_workspace(self) -> GlazewmWorkspaceButton | None:
+        active_workspace = self._get_active_workspace()
+        if not active_workspace:
+            return None
+        active_index = list(self.workspaces.keys()).index(active_workspace.workspace_name)
+        prev_index = (active_index - 1) % len(self.workspaces)
+        return self.workspaces[list(self.workspaces.keys())[prev_index]]
+
+    def _focus_next_workspace(self):
+        next_workspace = self._get_next_workspace()
+        if not next_workspace:
+            return
+        self.glazewm_client.activate_workspace(next_workspace.workspace_name)
+
+    def _focus_prev_workspace(self):
+        prev_workspace = self._get_prev_workspace()
+        if not prev_workspace:
+            return
+        self.glazewm_client.activate_workspace(prev_workspace.workspace_name)
+
+    def wheelEvent(self, event: QWheelEvent):
+        if event.angleDelta().y() > 0:
+            self._focus_next_workspace()
+        elif event.angleDelta().y() < 0:
+            self._focus_prev_workspace()

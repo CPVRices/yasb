@@ -1,42 +1,47 @@
-import re
 import json
+import re
 from collections import deque
+from urllib.parse import quote
 
-from PyQt6.QtWidgets import QHBoxLayout, QLabel, QWidget
-from PyQt6.QtCore import Qt, QUrl
-from PyQt6.QtNetwork import QAuthenticator, QNetworkAccessManager, QNetworkRequest, QNetworkReply
+from PyQt6.QtCore import QEventLoop, Qt, QUrl
+from PyQt6.QtNetwork import QAuthenticator, QNetworkAccessManager, QNetworkReply, QNetworkRequest
+from PyQt6.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
+from core.utils.utilities import PopupWidget, add_shadow, build_widget_label
+from core.utils.widgets.animation_manager import AnimationManager
 from core.validation.widgets.yasb.libre_monitor import VALIDATION_SCHEMA
 from core.widgets.base import BaseWidget
-from urllib.parse import quote
-from core.utils.widgets.animation_manager import AnimationManager
+
 
 class LibreHardwareMonitorWidget(BaseWidget):
     validation_schema = VALIDATION_SCHEMA
 
     def __init__(
-            self,
-            class_name: str,
-            label: str,
-            label_alt: str,
-            update_interval: int,
-            sensor_id: str,
-            histogram_icons: list[str],
-            histogram_num_columns: int,
-            precision: int,
-            history_size: int,
-            histogram_fixed_min: float | None,
-            histogram_fixed_max: float | None,
-            sensor_id_error_label,
-            connection_error_label,
-            auth_error_label,
-            server_host: str,
-            server_port: int,
-            server_username: str,
-            server_password: str,
-            animation: dict[str, str],
-            container_padding: dict[str, int],
-            callbacks: dict,
+        self,
+        class_name: str,
+        label: str,
+        label_alt: str,
+        update_interval: int,
+        sensor_id: str,
+        histogram_icons: list[str],
+        histogram_num_columns: int,
+        precision: int,
+        history_size: int,
+        histogram_fixed_min: float | None,
+        histogram_fixed_max: float | None,
+        sensor_id_error_label,
+        connection_error_label,
+        auth_error_label,
+        server_host: str,
+        server_port: int,
+        server_username: str,
+        server_password: str,
+        animation: dict[str, str],
+        container_padding: dict[str, int],
+        callbacks: dict,
+        libre_menu: dict,
+        label_shadow: dict = None,
+        container_shadow: dict = None,
     ):
         super().__init__(update_interval, class_name=class_name)
         self._show_alt_label = False
@@ -59,20 +64,27 @@ class LibreHardwareMonitorWidget(BaseWidget):
         self._server_password = server_password
         self._animation = animation
         self._padding = container_padding
+        self._label_shadow = label_shadow
+        self._container_shadow = container_shadow
+        self._libre_menu = libre_menu
         # UI
         self._widget_container_layout = QHBoxLayout()
         self._widget_container_layout.setSpacing(0)
-        self._widget_container_layout.setContentsMargins(self._padding['left'],self._padding['top'],self._padding['right'],self._padding['bottom'])
+        self._widget_container_layout.setContentsMargins(
+            self._padding["left"], self._padding["top"], self._padding["right"], self._padding["bottom"]
+        )
 
         self._widget_container = QWidget()
         self._widget_container.setLayout(self._widget_container_layout)
         self._widget_container.setProperty("class", "widget-container")
+        add_shadow(self._widget_container, self._container_shadow)
         self.widget_layout.addWidget(self._widget_container)
 
-        self._create_dynamically_label(self._label_content, self._label_alt_content)
+        build_widget_label(self, self._label_content, self._label_alt_content, self._label_shadow)
 
         self.register_callback("toggle_label", self._toggle_label)
         self.register_callback("update_label", self._update_label)
+        self.register_callback("toggle_menu", self._toggle_menu)
 
         self._data = None
         # Create a network manager to handle the LHM connection asynchronously
@@ -101,8 +113,8 @@ class LibreHardwareMonitorWidget(BaseWidget):
 
     def _toggle_label(self):
         """Toggle between main and alt labels"""
-        if self._animation['enabled']:
-            AnimationManager.animate(self, self._animation['type'], self._animation['duration'])
+        if self._animation["enabled"]:
+            AnimationManager.animate(self, self._animation["type"], self._animation["duration"])
         self._show_alt_label = not self._show_alt_label
         for widget in self._widgets:
             widget.setVisible(not self._show_alt_label)
@@ -110,37 +122,120 @@ class LibreHardwareMonitorWidget(BaseWidget):
             widget.setVisible(self._show_alt_label)
         self._update_label()
 
-    def _create_dynamically_label(self, content: str, content_alt: str):
-        """Label initialization"""
+    def _toggle_menu(self):
+        """Toggle the popup menu"""
+        if self._animation["enabled"]:
+            AnimationManager.animate(self, self._animation["type"], self._animation["duration"])
+        self._show_popup_menu()
 
-        def process_content(content: str, is_alt=False):
-            label_parts = re.split("(<span.*?>.*?</span>)", content)
-            label_parts = [part for part in label_parts if part]
-            widgets: list[QLabel] = []
-            for part in label_parts:
-                part = part.strip()
-                if not part:
-                    continue
-                if "<span" in part and "</span>" in part:
-                    class_name = re.search(r'class=(["\'])([^"\']+?)\1', part)
-                    class_result = class_name.group(2) if class_name else "icon"
-                    icon = re.sub(r"<span.*?>|</span>", "", part).strip()
-                    label = QLabel(icon)
-                    label.setProperty("class", class_result)
-                else:
-                    label = QLabel(part)
-                    label.setProperty("class", "label")
-                label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                self._widget_container_layout.addWidget(label)
-                widgets.append(label)
-                if is_alt:
-                    label.hide()
-                else:
-                    label.show()
-            return widgets
+    def _show_popup_menu(self):
+        """Shows a popup menu with sensors information"""
+        self._menu = PopupWidget(
+            self,
+            self._libre_menu["blur"],
+            self._libre_menu["round_corners"],
+            self._libre_menu["round_corners_type"],
+            self._libre_menu["border_color"],
+        )
+        self._menu.setProperty("class", "libre-menu")
 
-        self._widgets = process_content(content)
-        self._widgets_alt = process_content(content_alt, is_alt=True)
+        layout = QVBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        if self._libre_menu["header_label"]:
+            header_label = QLabel(self._libre_menu["header_label"])
+            header_label.setProperty("class", "header")
+            header_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(header_label)
+
+        self.sensors_container = QWidget()
+        self.sensor_value_labels = {}
+
+        self.sensors_layout = QGridLayout(self.sensors_container)
+        col_count = self._libre_menu["columns"]
+
+        for idx, sensor in enumerate(self._libre_menu["sensors"]):
+            sensor_id = sensor["id"]
+            sensor_name = sensor["name"]
+
+            sensor_widget = QFrame()
+            sensor_widget.setProperty("class", "sensor-item")
+            sensor_layout = QHBoxLayout(sensor_widget)
+
+            name_label = QLabel(sensor_name)
+            name_label.setProperty("class", "sensor-name")
+
+            value_label = QLabel()
+            value_label.setProperty("class", "sensor-value")
+            value_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+            self.sensor_value_labels[sensor_id] = value_label
+
+            sensor_layout.addWidget(name_label)
+            sensor_layout.addStretch(1)
+            sensor_layout.addWidget(value_label)
+
+            row = idx // col_count
+            col = idx % col_count
+            self.sensors_layout.addWidget(sensor_widget, row, col)
+
+        layout.addWidget(self.sensors_container)
+
+        self._menu.setLayout(layout)
+        self._menu.adjustSize()
+        self._menu.setPosition(
+            self._libre_menu["alignment"],
+            self._libre_menu["direction"],
+            self._libre_menu["offset_left"],
+            self._libre_menu["offset_top"],
+        )
+        self._menu.show()
+        self._update_menu_content()
+
+    def _update_menu_content(self):
+        """Update only the values in the existing labels if popup is open"""
+        if self._is_menu_visible():
+            for sensor in self._libre_menu["sensors"]:
+                sensor_id = sensor["id"]
+                value_label = self.sensor_value_labels.get(sensor_id)
+                if value_label is not None and isinstance(value_label, QLabel):
+                    try:
+                        self._update_sensor_value(sensor_id, value_label)
+                    except RuntimeError:
+                        continue
+
+    def _update_sensor_value(self, sensor_id, value_label):
+        """Update just the value for a specific sensor"""
+        if not self._is_menu_visible():
+            return
+        url = QUrl(f"http://{self._server_host}:{self._server_port}/Sensor?action=Get&id={quote(sensor_id)}")
+        request = QNetworkRequest(url)
+        request.setHeader(QNetworkRequest.KnownHeaders.ContentTypeHeader, "application/x-www-form-urlencoded")
+        manager = QNetworkAccessManager()
+        manager.authenticationRequired.connect(self._handle_authentication)
+        reply = manager.post(request, b"")
+        loop = QEventLoop()
+        reply.finished.connect(loop.quit)
+        loop.exec()
+        if reply.error() == QNetworkReply.NetworkError.NoError:
+            bytes_string = reply.readAll().data()
+            data = json.loads(bytes_string.decode("utf-8"))
+            if data.get("result") == "ok":
+                value = data.get("value", "N/A")
+                unit = data.get("format", "").split(" ")[-1]
+                value_label.setText(f"{value:.{self._libre_menu['precision']}f} {unit}")
+            else:
+                # Sensor missing or not found
+                value_label.setText("N/A")
+        reply.deleteLater()
+
+    def _is_menu_visible(self):
+        """Check if the popup menu is visible"""
+        try:
+            if getattr(self, "_menu", None) is not None and isinstance(self._menu, QWidget) and self._menu.isVisible():
+                return True
+        except (RuntimeError, AttributeError):
+            return False
 
     def _get_histogram_bar(self, value: float, value_min: float, value_max: float):
         """Gets the appropriate histogram element from the icons list based on the value and min/max"""
@@ -150,7 +245,9 @@ class LibreHardwareMonitorWidget(BaseWidget):
 
     def _update_label(self):
         """Make a request and update the label with the received data"""
-        self._make_request()
+        if self._sensor_id:
+            # If sensor_id is empty skip call
+            self._make_request()
         info = {
             "status": "",
             "value": "",
@@ -196,6 +293,10 @@ class LibreHardwareMonitorWidget(BaseWidget):
                     formatted_text = part.format(info=info) if info else part
                     active_widgets[widget_index].setText(formatted_text)
                 widget_index += 1
+
+        # Update popup menu if it's visible
+        if self._is_menu_visible():
+            self._update_menu_content()
 
     def _make_request(self):
         """Makes a post request to LibreHardwareMonitor"""

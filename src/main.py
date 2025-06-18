@@ -1,34 +1,59 @@
 import asyncio
+import contextlib
+import ctypes
 import logging
 import sys
-from sys import argv, exit
+from sys import argv
+
 import qasync
 from PyQt6.QtWidgets import QApplication
+
+import settings
 from core.bar_manager import BarManager
 from core.config import get_config_and_stylesheet
-from core.log import init_logger
-from core.tray import TrayIcon
-from core.watcher import create_observer
 from core.event_service import EventService
-import settings
-import ctypes
-import ctypes.wintypes
-from core.utils.win32.windows import WindowsTaskbar
+from core.log import init_logger
+from core.tray import SystemTrayManager
+from core.utils.controller import start_cli_server
+from core.watcher import create_observer
+from env_loader import load_env, set_font_engine
 
-logging.getLogger('asyncio').setLevel(logging.WARNING)
+logging.getLogger("asyncio").setLevel(logging.WARNING)
+
+
+@contextlib.contextmanager
+def single_instance_lock(name="yasb_reborn"):
+    """
+    Context manager that creates a Windows mutex to ensure a single instance.
+    """
+    mutex = ctypes.windll.kernel32.CreateMutexW(None, False, name)
+    if not mutex:
+        logging.error("Failed to create mutex.")
+        sys.exit(1)
+    if ctypes.windll.kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
+        ctypes.windll.kernel32.CloseHandle(mutex)
+        logging.error("Another instance of the YASB is already running.")
+        sys.exit(1)
+    try:
+        yield mutex
+    finally:
+        ctypes.windll.kernel32.ReleaseMutex(mutex)
+        ctypes.windll.kernel32.CloseHandle(mutex)
+
 
 def main():
-    config, stylesheet = get_config_and_stylesheet()
-    global hide_taskbar
-    hide_taskbar = config['hide_taskbar']
-    
-    if config['debug']:
-        settings.DEBUG = True
-        logging.info("Debug mode enabled.")
+    # Application instance should be created first
     app = QApplication(argv)
     app.setQuitOnLastWindowClosed(False)
 
-    # Need qasync event loop to make async calls work properly with PyQt6
+    # Initialize configuration early after the single instance check
+    config, stylesheet = get_config_and_stylesheet()
+
+    if config["debug"]:
+        settings.DEBUG = True
+        logging.info("Debug mode enabled.")
+
+    # Need qasync event loop to work with PyQt6
     loop = qasync.QEventLoop(app)
     asyncio.set_event_loop(loop)
 
@@ -36,61 +61,43 @@ def main():
     manager = BarManager(config, stylesheet)
     manager.initialize_bars(init=True)
 
-    # Build system tray icon
-    tray_icon = TrayIcon(manager)
-    tray_icon.show()
-
-    # Initialise file watcher
-    if config['watch_config'] or config['watch_stylesheet']:
-        observer = create_observer(manager)
+    # Initialise file watcher if needed
+    observer = create_observer(manager) if config["watch_config"] or config["watch_stylesheet"] else None
+    if observer:
         observer.start()
-    else:
-        observer = None
 
-    # Stop observer upon quit
     def stop_observer():
         if observer:
             observer.stop()
             observer.join()
-            if hide_taskbar:
-                WindowsTaskbar.hide(False, settings.DEBUG)
+
     app.aboutToQuit.connect(stop_observer)
 
+    # Build system tray icon
+    tray_manager = SystemTrayManager(manager)
+    tray_manager.show()
+
     with loop:
-        if hide_taskbar:
-            WindowsTaskbar.hide(True, settings.DEBUG)
         loop.run_forever()
-        
+
 
 if __name__ == "__main__":
     init_logger()
-    base_excepthook = sys.excepthook 
+    start_cli_server()
+    load_env()
+    set_font_engine()
+
     def exception_hook(exctype, value, traceback):
-        if hide_taskbar:
-            WindowsTaskbar.hide(False, settings.DEBUG)
         EventService().clear()
         logging.error("Unhandled exception", exc_info=value)
-        sys.exit(1) 
-    sys.excepthook = exception_hook 
+        sys.exit(1)
 
-    # Create a named mutex to prevent multiple instances
-    mutex = ctypes.windll.kernel32.CreateMutexW(None, False, "yasb_reborn")
-    if mutex == 0:
-        logging.error("Failed to create mutex.")
-        sys.exit(1)
-    if ctypes.windll.kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
-        logging.error("Another instance of the YASB is already running.")
-        ctypes.windll.kernel32.CloseHandle(mutex)
-        sys.exit(1)
+    sys.excepthook = exception_hook
+
     try:
-        main()
-    except BaseException as e:
-        if isinstance(e, SystemExit) and e.code == 0:
-            exit(e.code)
-        # remove StreamHandler
-        logging.getLogger().handlers = [h for h in logging.getLogger().handlers if not isinstance(h, logging.StreamHandler)]
-        logging.exception("Exception in main()")
-        raise
-    finally:
-        ctypes.windll.kernel32.ReleaseMutex(mutex)
-        ctypes.windll.kernel32.CloseHandle(mutex)
+        # Acquire the single instance lock before doing any heavy initialization
+        with single_instance_lock():
+            main()
+    except Exception:
+        logging.exception("Exception during application startup")
+        sys.exit(1)

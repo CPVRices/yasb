@@ -12,10 +12,13 @@
 | `border_color`  | string  | `'System'`                                                          |  Border color. |
 | `alignment`     | string  | `"left"`                                                               | Alignment of the menu. Possible values: `"left"`, `"center"`, `"right"`. |
 | `direction`     | string  | `"down"`                                                           | Direction of the menu. Possible values: `"up"`, `"down"`. |
-| `distance`      | int     | `6`                                                                     | Distance from the top or bottom edge of the bar. |
+| `offset_top`      | int     | `6`                                                                     | Distance from the top or bottom edge of the bar. |
+| `offset_left`     | int     | `0`                                                                     | Distance from the left or right edge of the bar. |
 | `menu_labels`   | dict | `{'shutdown': 'Shutdown', 'restart': 'Restart', 'logout': 'Logout', 'lock': 'Lock', 'sleep': 'Sleep', 'system': 'System Settings', 'about': 'About This PC', 'task_manager': 'Task Manager'}` | Custom label names for system and power items. | 
 | `container_padding`  | dict | `{'top': 0, 'left': 0, 'bottom': 0, 'right': 0}`      | Explicitly set padding inside widget container. |
 | `animation`         | dict    | `{'enabled': True, 'type': 'fadeInOut', 'duration': 200}`               | Animation settings for the widget.                                          |
+| `container_shadow`   | dict   | `None`                  | Container shadow options.                       |
+| `label_shadow`         | dict   | `None`                  | Label shadow options.                 |
 
 ## Example Configuration
 
@@ -35,7 +38,8 @@ home:
     round_corners: true
     round_corners_type: "normal"
     border_color: "System"
-    distance: 6
+    offset_top: 6
+    offset_left: 0
     container_padding: 
       top: 0
       left: 0
@@ -52,6 +56,11 @@ home:
       system: "System Settings"
       about: "About This PC"
       task_manager: "Task Manager"
+    label_shadow:
+      enabled: true
+      color: "black"
+      radius: 3
+      offset: [ 1, 1 ]
 ```
  
 
@@ -67,10 +76,13 @@ home:
 - **border_color**: Border color. Border color for bar can be `None`, `System` or `Hex Color` `"#ff0000"`. (This applies to system round_corners and if round_corners is True.)
 - **alignment**: Alignment of the menu. Possible values: `"left"`, `"center"`, `"right"`.
 - **direction**: Direction of the menu. Possible values: `"up"`, `"down"`.
-- **distance**: Distance from the top or bottom edge of the bar. Use this option to set the distance from the top or bottom edge of the bar. You can set the distance in pixels.
+- **offset_top**: Distance from the top or bottom edge of the bar.
+- **offset_left**: Distance from the left or right edge of the bar.
 - **menu_labels**: Custom label names for system and power items. Use this option to change the default labels for system and power menu items.
 - **container_padding**: Explicitly set padding inside widget container. Use this option to set padding inside the widget container. You can set padding for top, left, bottom and right sides of the widget container.
 - **animation:** A dictionary specifying the animation settings for the widget. It contains three keys: `enabled`, `type`, and `duration`. The `type` can be `fadeInOut` and the `duration` is the animation duration in milliseconds.
+- **container_shadow:** Container shadow options.
+- **label_shadow:** Label shadow options.
 
 ## Example Style
 ```css
