@@ -1,0 +1,79 @@
+name: Windows unsigned build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.14"
+
+jobs:
+  build:
+    name: Build unsigned (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: windows-latest
+            python_arch: x64
+            artifact_suffix: x64
+          - arch: arm64
+            runner: windows-11-arm
+            python_arch: arm64
+            artifact_suffix: aarch64
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          architecture: ${{ matrix.python_arch }}
+
+      - name: Create virtual environment
+        run: python -m venv venv
+        shell: pwsh
+
+      - name: Install packaging dependencies
+        run: |
+          .\venv\Scripts\Activate
+          python -m pip install --upgrade pip
+          pip install --force --no-cache ".[packaging]"
+        shell: pwsh
+
+      - name: Build unsigned MSI
+        run: |
+          .\venv\Scripts\Activate
+          Set-Location src
+          python build.py build
+          python build.py bdist_msi
+        shell: pwsh
+
+      - name: Mark installer as unsigned
+        env:
+          ARTIFACT_SUFFIX: ${{ matrix.artifact_suffix }}
+        run: |
+          $msi = Get-ChildItem -Path "src/dist/out/*.msi" | Select-Object -First 1
+          if ($null -eq $msi) {
+            throw "MSI build did not produce an installer"
+          }
+          $unsignedName = $msi.Name -replace "-$env:ARTIFACT_SUFFIX\.msi$", "-unsigned-$env:ARTIFACT_SUFFIX.msi"
+          if ($unsignedName -eq $msi.Name) {
+            throw "Unexpected MSI filename: $($msi.Name)"
+          }
+          Rename-Item -Path $msi.FullName -NewName $unsignedName
+        shell: pwsh
+
+      - name: Upload unsigned MSI
+        uses: actions/upload-artifact@v7
+        with:
+          name: yasb-unsigned-${{ matrix.artifact_suffix }}
+          path: src/dist/out/*-unsigned-${{ matrix.artifact_suffix }}.msi
+          if-no-files-found: error
+          retention-days: 7
