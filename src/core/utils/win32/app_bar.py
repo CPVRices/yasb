@@ -5,10 +5,11 @@ from ctypes import POINTER, Structure, c_ulong, sizeof, windll, wintypes
 import win32con
 from PyQt6.QtGui import QScreen
 
-import settings
-
 shell32 = windll.shell32
 user32 = windll.user32
+
+# Custom callback message for AppBar notifications (WM_USER + 100)
+APPBAR_CALLBACK_MESSAGE = 0x0400 + 100  # WM_USER = 0x0400
 
 """
 Application Desktop Toolbar (with added support for PyQt6)
@@ -50,6 +51,18 @@ class AppBarMessage:
     SetAutoHideBarEx = 12
 
 
+class AppBarNotify:
+    """
+    AppBar notification codes sent via callback message
+    Documentation: https://docs.microsoft.com/en-us/windows/win32/shell/abn-fullscreenapp
+    """
+
+    StateChange = 0  # ABN_STATECHANGE
+    PosChanged = 1  # ABN_POSCHANGED
+    FullScreenApp = 2  # ABN_FULLSCREENAPP
+    WindowArrange = 3  # ABN_WINDOWARRANGE
+
+
 class AppBarData(Structure):
     """
     AppBarData struct
@@ -74,24 +87,39 @@ class Win32AppBar:
         self,
     ):
         self.app_bar_data = None
+        self.callback_message = APPBAR_CALLBACK_MESSAGE
 
     def create_appbar(
-        self, hwnd: int, edge: AppBarEdge, app_bar_height: int, screen: QScreen, scale_screen: bool = False
+        self,
+        hwnd: int,
+        edge: AppBarEdge,
+        app_bar_height: int,
+        screen: QScreen,
+        scale_screen: bool = False,
+        bar_name: str = None,
+        reserve_space: bool = True,
+        always_on_top: bool = False,
     ):
         self.app_bar_data = AppBarData()
         self.app_bar_data.cbSize = wintypes.DWORD(sizeof(self.app_bar_data))
         self.app_bar_data.uEdge = edge
         self.app_bar_data.hWnd = hwnd
         self.register_new()
-        self.position_bar(app_bar_height, screen, scale_screen)
-        self.set_position()
 
-        exStyle = windll.user32.GetWindowLongPtrW(hwnd, win32con.GWL_EXSTYLE)
-        windll.user32.SetWindowLongPtrW(
-            hwnd, win32con.GWL_EXSTYLE, exStyle | win32con.WS_EX_NOACTIVATE | win32con.WS_EX_TOPMOST
-        )
+        current_ex_style = windll.user32.GetWindowLongPtrW(hwnd, win32con.GWL_EXSTYLE)
+        updated_ex_style = current_ex_style | win32con.WS_EX_NOACTIVATE
+        if always_on_top:
+            updated_ex_style |= win32con.WS_EX_TOPMOST
+        windll.user32.SetWindowLongPtrW(hwnd, win32con.GWL_EXSTYLE, updated_ex_style)
 
-    def position_bar(self, app_bar_height: int, screen: QScreen, scale_screen: bool = False) -> None:
+        self.position_bar(app_bar_height, screen, scale_screen, bar_name)
+        # Only reserve screen space if requested windows_app_bar: true
+        if reserve_space:
+            self.set_position()
+
+    def position_bar(
+        self, app_bar_height: int, screen: QScreen, scale_screen: bool = False, bar_name: str = None
+    ) -> None:
         geometry = screen.geometry()
         bar_height = int(app_bar_height * screen.devicePixelRatio())
         screen_height = int(geometry.height() * screen.devicePixelRatio() if scale_screen else geometry.height())
@@ -105,12 +133,17 @@ class Win32AppBar:
         else:
             self.app_bar_data.rc.top = screen.geometry().y() + screen_height - bar_height
             self.app_bar_data.rc.bottom = screen.geometry().y() + screen_height
-        if settings.DEBUG:
-            logging.info(
-                f"Bar Created on Screen: {screen.name()} [Bar Height: {app_bar_height}px, DPI Scale: {screen.devicePixelRatio()}, Scale Screen: {scale_screen}, Screen Geometry: X: {screen.geometry().x()}, Y: {screen.geometry().y()}, Screen Width: {screen.geometry().width()}, Screen Height: {screen.geometry().height()}]"
-            )
+        bar_info = f"Bar {bar_name}" if bar_name else "Bar"
+        logging.debug(
+            "%s Created on Screen: %s [Bar Height: %spx, DPI Scale: %s]",
+            bar_info,
+            screen.name(),
+            app_bar_height,
+            screen.devicePixelRatio(),
+        )
 
     def register_new(self):
+        self.app_bar_data.uCallbackMessage = self.callback_message
         shell32.SHAppBarMessage(AppBarMessage.New, P_APPBAR_DATA(self.app_bar_data))
 
     def window_pos_changed(self):

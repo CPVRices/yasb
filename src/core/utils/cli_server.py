@@ -2,10 +2,11 @@ import json
 import logging
 import threading
 import time
+from collections.abc import Callable
 from ctypes import GetLastError
-from typing import Callable
 
 from win32con import (
+    FILE_FLAG_OVERLAPPED,
     PIPE_ACCESS_DUPLEX,
     PIPE_READMODE_MESSAGE,
     PIPE_TYPE_MESSAGE,
@@ -100,6 +101,7 @@ class LogPipeServer:
         """Start the logging pipe server"""
         self.stop_event.clear()
         self.server_thread = threading.Thread(target=self._run_server, daemon=True)
+        self.server_thread.name = "LogPipeServer"
         self.server_thread.start()
         logger.info("Log pipe server started")
 
@@ -117,7 +119,7 @@ class LogPipeServer:
             # Create a new pipe
             handle = CreateNamedPipe(
                 LOG_SERVER_PIPE_NAME,
-                PIPE_ACCESS_DUPLEX,
+                PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED,
                 PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT,
                 10,
                 BUFSIZE,
@@ -128,13 +130,13 @@ class LogPipeServer:
 
             # Check the handle
             if handle == INVALID_HANDLE_VALUE:
-                logger.error(f"Log pipe server failed to create handle. Err: {GetLastError()}")
+                logger.error("Log pipe server failed to create handle. Err: %s", GetLastError())
                 time.sleep(1)
                 continue
 
             # Wait for a client to connect
             if not ConnectNamedPipe(handle):
-                logger.error(f"Log pipe server failed to connect. Err: {GetLastError()}")
+                logger.error("Log pipe server failed to connect. Err: %s", GetLastError())
                 DisconnectNamedPipe(handle)
                 CloseHandle(handle)
                 time.sleep(0.1)
@@ -144,6 +146,7 @@ class LogPipeServer:
 
             root_logger = logging.getLogger()
             handler = PipeLogHandler(handle)
+            handler.setLevel(root_logger.handlers[0].level if root_logger.handlers else logging.INFO)
             formatter = ColoredFormatter(CLI_LOG_FORMAT, datefmt=CLI_LOG_DATETIME)
             handler.setFormatter(formatter)
             root_logger.addHandler(handler)
@@ -151,13 +154,13 @@ class LogPipeServer:
             while True:
                 msg = read_message(handle)
                 if msg is None:
-                    logger.error(f"Client disconnected or read error. Err: {GetLastError()}")
+                    logger.info("Client disconnected or read error. Err: %s", GetLastError())
                     time.sleep(0.1)
                     break
 
                 if msg and msg.get("type") == "PING":
                     if not write_message(handle, {"type": "PONG"}):
-                        logger.error(f"Write pong failed. Err: {GetLastError()}")
+                        logger.error("Write pong failed. Err: %s", GetLastError())
                         time.sleep(0.1)
                         break
                     time.sleep(1)
@@ -192,6 +195,7 @@ class CliPipeHandler:
         """
         self.stop_event.clear()
         self.server_thread = threading.Thread(target=self._run_server, daemon=True)
+        self.server_thread.name = "CLIPipeServer"
         self.server_thread.start()
         self.log_server.start()
 
@@ -205,16 +209,16 @@ class CliPipeHandler:
 
             logger.debug("CLI server stopped")
         except Exception as e:
-            logger.error(f"Error stopping CLI server: {e}")
+            logger.error("Error stopping CLI server: %s", e)
 
     def _run_server(self):
         """Internal method to run the server loop"""
-        logger.info(f"CLI server started v{CLI_VERSION}")
+        logger.info("CLI server started v%s", CLI_VERSION)
 
         while not self.stop_event.is_set():
             handle = CreateNamedPipe(
                 CLI_SERVER_PIPE_NAME,
-                PIPE_ACCESS_DUPLEX,
+                PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED,
                 PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT,
                 10,
                 BUFSIZE,
@@ -223,7 +227,7 @@ class CliPipeHandler:
                 None,
             )
             if handle == INVALID_HANDLE_VALUE:
-                logger.error(f"CLI pipe server failed to create handle. Err: {GetLastError()}")
+                logger.error("CLI pipe server failed to create handle. Err: %s", GetLastError())
                 time.sleep(1)
                 continue
 
@@ -243,19 +247,19 @@ class CliPipeHandler:
         """Handle a client connection and process commands"""
         success, data = ReadFile(pipe, 64 * 1024)
         if not success or len(data) == 0:
-            logger.error(f"CLI client disconnected or read error. Err: {GetLastError()}")
+            logger.info("CLI client disconnected or read error. Err: %s", GetLastError())
             return None
 
         full_command = data.decode("utf-8").strip()
         # Get just the base command for comparison
         command = full_command.split()[0].lower() if full_command else ""
 
-        logger.info(f"CLI server received command: {full_command}")
+        logger.info("CLI server received command: %s", full_command)
 
         if command in ["stop", "reload", "show-bar", "hide-bar", "toggle-bar"]:
             success = WriteFile(pipe, b"ACK")
             if not success:
-                logger.error(f"Write ACK failed. Err: {GetLastError()}")
+                logger.error("Write ACK failed. Err: %s", GetLastError())
                 return None
 
             # Ensure we restart the pipe server if it's a reload command
@@ -293,4 +297,4 @@ class CliPipeHandler:
             self.log_server.start()
 
         except Exception as e:
-            logger.error(f"Failed to restart cli server: {e}")
+            logger.error("Failed to restart cli server: %s", e)

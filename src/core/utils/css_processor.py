@@ -1,14 +1,6 @@
 import logging
 import os
 import re
-from pathlib import Path
-from typing import Dict, Set
-
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFontDatabase, QIcon
-from PyQt6.QtWidgets import QCheckBox, QMessageBox
-
-from settings import DEBUG, SCRIPT_PATH
 
 
 class CSSProcessor:
@@ -16,17 +8,12 @@ class CSSProcessor:
     Processes CSS files: handles @import, CSS variables, and removes comments.
     """
 
-    LOCALDATA_FOLDER = Path(os.environ["LOCALAPPDATA"]) / "Yasb"
-    SKIP_FONT_CHECK = LOCALDATA_FOLDER / "skip_font_check"
     _localdata_initialized = False
 
     def __init__(self, css_path: str):
-        if not CSSProcessor._localdata_initialized:
-            CSSProcessor.LOCALDATA_FOLDER.mkdir(parents=True, exist_ok=True)
-            CSSProcessor._localdata_initialized = True
         self.css_path = css_path
         self.base_path = os.path.dirname(css_path)
-        self.imported_files: Set[str] = set()
+        self.imported_files: set[str] = set()
         self.css_content = self._read_css_file(css_path)
 
     def process(self) -> str:
@@ -35,6 +22,7 @@ class CSSProcessor:
         """
         if not self.css_content:
             return ""
+        self.imported_files = set()
         # Remove comments from the CSS content
         css = self._remove_comments(self.css_content)
         # Process @import statements and CSS variables
@@ -43,16 +31,16 @@ class CSSProcessor:
         css = self._remove_comments(css)
         # Extract and replace CSS variables
         css = self._extract_and_replace_variables(css)
-        # Check for missing fonts and warn the user
-        self._check_font_families(css)
+        # Resolve relative url() paths to absolute paths
+        css = self._resolve_urls(css)
         return css
 
     def _read_css_file(self, file_path: str) -> str:
         try:
-            with open(file_path, "r", encoding="utf-8") as file:
+            with open(file_path, encoding="utf-8") as file:
                 return file.read()
         except (FileNotFoundError, OSError) as e:
-            logging.error(f"CSSProcessor Error '{file_path}': {e}")
+            logging.error("CSSProcessor Error '%s': %s", file_path, e)
         return ""
 
     def _remove_comments(self, css: str) -> str:
@@ -70,7 +58,7 @@ class CSSProcessor:
             import_path = path.strip("'\"")
             full_import_path = os.path.normpath(os.path.join(self.base_path, import_path))
             if full_import_path in self.imported_files:
-                logging.warning(f"Circular import detected: {full_import_path}")
+                logging.warning("Circular import detected: %s", full_import_path)
                 return ""
             self.imported_files.add(full_import_path)
             imported_css = self._read_css_file(full_import_path)
@@ -82,7 +70,7 @@ class CSSProcessor:
 
     def _extract_and_replace_variables(self, css: str) -> str:
         # Extract variables from :root
-        root_vars: Dict[str, str] = {}
+        root_vars: dict[str, str] = {}
 
         def root_replacer(match):
             content = match.group(1)
@@ -94,13 +82,36 @@ class CSSProcessor:
 
         css = re.sub(r":root\s*{([^}]*)}", root_replacer, css, flags=re.DOTALL)
 
-        # Replace var(--name) with value
-        def var_replacer(match):
+        # Resolve variables recursively
+        resolved_vars = root_vars.copy()
+        max_iterations = 10  # Make sure we never get stuck in a loop.
+        for iteration in range(max_iterations):
+            changed = False
+
+            for var_name, var_value in resolved_vars.items():
+
+                def var_replacer(match):
+                    nonlocal changed
+                    nested_var_name = match.group(1).strip()
+                    if nested_var_name in resolved_vars:
+                        changed = True
+                        return resolved_vars[nested_var_name]
+                    return match.group(0)
+
+                # Replace var(--name) with their value until it's no longer another variable
+                new_value = re.sub(r"var\((--[\w-]+)\)", var_replacer, var_value)
+                if new_value != var_value:
+                    resolved_vars[var_name] = new_value
+                    changed = True
+            if not changed:
+                break  # No more changes, resolution complete
+
+        def final_var_replacer(match):
             var_name = match.group(1).strip()
-            return root_vars.get(var_name, match.group(0))
+            return resolved_vars.get(var_name, match.group(0))
 
-        css = re.sub(r"var\((--[\w-]+)\)", var_replacer, css)
-
+        # Replace final var(--name) with resolved CSS value
+        css = re.sub(r"var\((--[\w-]+)\)", final_var_replacer, css)
         css = self._css_to_qt_hex_alpha(css)
 
         return css
@@ -123,95 +134,24 @@ class CSSProcessor:
         # Match hex colors with # followed by exactly 8 hex digits
         return re.sub(r"#([0-9a-fA-F]{8})\b", hex_alpha_replacer, css)
 
-    def _check_font_families(self, css: str):
+    def _resolve_urls(self, css: str) -> str:
         """
-        Checks for missing font families in the CSS and optionally warns the user.
-        Uses case-insensitive comparison for font names.
+        Resolves relative url() paths in CSS to absolute paths based on the CSS file's directory.
+        Qt's setStyleSheet resolves url() relative to the application's working directory,
+        not the CSS file location, so we need to make them absolute.
         """
-        if not self._should_check_fonts():
-            return set(), {}
 
-        # Generic font families that should be ignored in the check
-        generic_families = {
-            "sans-serif",
-            "serif",
-            "monospace",
-            "cursive",
-            "fantasy",
-            "system-ui",
-            "ui-serif",
-            "ui-sans-serif",
-            "ui-monospace",
-            "ui-rounded",
-            "emoji",
-            "math",
-            "fangsong",
-            "initial",
-            "inherit",
-            "default",
-        }
+        def url_replacer(match):
+            quote = match.group(1) or ""
+            path = match.group(2)
+            # Skip data URIs, absolute paths, and URLs with schemes (http, https, qrc, etc.)
+            if path.startswith(("data:", "file:", "http:", "https:", "qrc:")) or os.path.isabs(path):
+                return match.group(0)
+            abs_path = os.path.normpath(os.path.join(self.base_path, path))
+            if not os.path.isfile(abs_path):
+                logging.warning("CSSProcessor: url() references missing file: %s", abs_path)
+            # Use forward slashes for Qt compatibility
+            abs_path = abs_path.replace("\\", "/")
+            return f"url({quote}{abs_path}{quote})"
 
-        # Check for available fonts (converted to lowercase for case-insensitive comparison)
-        available_fonts = {font.lower() for font in QFontDatabase.families()}
-
-        font_families = set()
-        font_status = {}
-
-        matches = re.findall(r"font-family\s*:\s*([^;}\n]+)\s*[;}]+", css, flags=re.IGNORECASE)
-        for match in matches:
-            fonts = [f.strip(" '\"\t\r\n") for f in match.split(",")]
-            for font in fonts:
-                if font:
-                    font_families.add(font)
-                    font_status[font] = font.lower() in generic_families or font.lower() in available_fonts
-
-        missing_fonts = [font for font, installed in font_status.items() if not installed]
-        if missing_fonts:
-            details = [
-                f'<a href="https://www.nerdfonts.com/font-downloads">{font}</a>'
-                if ("nerd font" in font.lower() or font.lower().endswith(" nf") or font.lower().endswith(" nfp"))
-                else font
-                for font in missing_fonts
-            ]
-            if self._show_font_warning(details):
-                self._set_skip_font_check()
-        if DEBUG:
-            logging.debug(f"Missing fonts: {missing_fonts}")
-        return font_families, font_status
-
-    def _set_skip_font_check(self):
-        try:
-            self.SKIP_FONT_CHECK.touch(exist_ok=True)
-        except OSError as e:
-            logging.error(f"Error writing skip_font_check.flag: {e}")
-        except Exception as e:
-            logging.error(f"Unexpected error writing skip_font_check.flag: {e}")
-
-    def _should_check_fonts(self) -> bool:
-        return not self.SKIP_FONT_CHECK.exists()
-
-    def _show_font_warning(self, details: list) -> bool:
-        """
-        Show a warning message box with the missing fonts and an option to not show it again.
-        """
-        msg_box = QMessageBox()
-        msg_box.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
-        icon_path = os.path.join(SCRIPT_PATH, "assets", "images", "app_icon.png")
-        msg_box.setIcon(QMessageBox.Icon.Warning)
-        msg_box.setWindowIcon(QIcon(icon_path))
-        msg_box.setWindowTitle("Missing font(s) detected in CSS")
-        msg_box.setText(
-            "Some fonts specified in your stylesheet are not installed on your system, "
-            "some icons or symbols may not be visible or may not display correctly."
-        )
-        msg_box.setInformativeText(
-            "Please install the missing fonts.<br>" + "<br>".join(f"<strong>{font}</strong>" for font in details)
-        )
-        msg_box.setStandardButtons(QMessageBox.StandardButton.Ok)
-        msg_box.setTextFormat(Qt.TextFormat.RichText)
-
-        checkbox = QCheckBox("Don't show this warning again")
-        msg_box.setCheckBox(checkbox)
-
-        msg_box.exec()
-        return checkbox.isChecked()
+        return re.sub(r"url\(([\"']?)([^)]+?)\1\)", url_replacer, css)

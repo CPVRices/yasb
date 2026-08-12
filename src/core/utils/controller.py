@@ -1,37 +1,56 @@
 import logging
 import os
 import sys
+import threading
 
-from PyQt6.QtCore import QCoreApplication, QProcess
+from PyQt6.QtCore import QMetaObject, QProcess, Qt
 from PyQt6.QtWidgets import QApplication
 
-from core.event_service import EventService
+from core.application import YASBApplication
+from core.events.service import EventService
 from core.utils.cli_server import CliPipeHandler
 
+_reload_lock = threading.Lock()
 
-def reload_application(msg="Reloading Application...", forced=False):
+
+def reload_application(msg: str = "Reloading Application..."):
+    if not _reload_lock.acquire(blocking=False):
+        logging.warning("Reload already in progress, ignoring additional reload request.")
+        return
     try:
         logging.info(msg)
         if hasattr(sys, "_cli_pipe_handler") and sys._cli_pipe_handler is not None:
             sys._cli_pipe_handler.stop_cli_pipe_server()
-        QApplication.processEvents()
-        QProcess.startDetached(sys.executable, sys.argv)
-        if forced:
-            os._exit(0)
-        else:
-            QCoreApplication.exit(0)
+
+        app = QApplication.instance()
+        if isinstance(app, YASBApplication):
+            if app.loop and app.close_event:
+                app.loop.call_soon_threadsafe(app.close_event.set)
+            else:  # Should never happen while we use qasync
+                QMetaObject.invokeMethod(app, "quit", Qt.ConnectionType.QueuedConnection)
+
+        args = list(sys.argv)
+        if "--restart-wait" not in args:
+            args.append("--restart-wait")
+
+        QProcess.startDetached(sys.executable, args)
     except Exception as e:
-        logging.error(f"Error during reload: {e}")
+        logging.error("Error during reload: %s", e)
         os._exit(0)
 
 
-def exit_application(msg="Exiting Application..."):
+def exit_application(msg: str = "Exiting Application..."):
     logging.info(msg)
     try:
         if hasattr(sys, "_cli_pipe_handler") and sys._cli_pipe_handler is not None:
             sys._cli_pipe_handler.stop_cli_pipe_server()
-        QCoreApplication.exit(0)
-        # sys.exit(0)
+
+        app = QApplication.instance()
+        if isinstance(app, YASBApplication):
+            if app.loop and app.close_event:
+                app.loop.call_soon_threadsafe(app.close_event.set)
+            else:  # Should never happen while we use qasync
+                QMetaObject.invokeMethod(app, "quit", Qt.ConnectionType.QueuedConnection)
     except:
         os._exit(0)
 
@@ -56,8 +75,10 @@ def process_cli_command(command: str):
 
     if base_command == "reload":
         reload_application("Reloading Application from CLI...")
+
     elif base_command == "stop":
         exit_application("Exiting Application from CLI...")
+
     elif base_command in ["show-bar", "hide-bar", "toggle-bar"]:
         action = base_command.split("-")[0]
         EventService().emit_event("handle_bar_cli", action, screen_name)

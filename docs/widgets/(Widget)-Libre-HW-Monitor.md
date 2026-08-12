@@ -1,5 +1,7 @@
 # Libre Hardware Monitor Widget Configuration
 
+Displays hardware stats (like CPU temperatures, fan speeds, and voltages) from a local Libre Hardware Monitor server. You can display real-time histograms, set warning levels, customize text precision, and click to view a complete hardware stats popup.
+
 | Option                   | Type    | Default                                                                                        | Description                                                                                                                                  |
 |--------------------------|---------|------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------|
 | `label`                  | string  | `"<span>\udb82\udcae </span> {info[value]}{info[unit]}"`                                       | The primary label format.                                                                                                                    |
@@ -19,12 +21,8 @@
 | `server_port`            | integer | `8085`                                                                                         | Libre Hardware Monitor server port.                                                                                                          |
 | `server_username`        | string  | `""`                                                                                           | Libre Hardware Monitor username. Only needed if auth is enabled.                                                                             |
 | `server_password`        | string  | `""`                                                                                           | Libre Hardware Monitor password. Only needed if auth is enabled.                                                                             |
-| `histogram_icons`        | list    | `['\u2581', '\u2581', '\u2582', '\u2583', '\u2584', '\u2585', '\u2586', '\u2587', '\u2588']`   | Icons representing CPU usage histograms.                                                                                                     |
+| `histogram_icons`        | list    | `["\u2581", "\u2581", "\u2582", "\u2583", "\u2584", "\u2585", "\u2586", "\u2587", "\u2588"]`   | Icons representing CPU usage histograms.                                                                                                     |
 | `callbacks`              | dict    | `{'on_left': 'toggle_label', 'on_middle': 'do_nothing', 'on_right': 'toggle_menu'}`             | Callback functions for different mouse button actions.                                                                                       |
-| `animation`         | dict    | `{'enabled': True, 'type': 'fadeInOut', 'duration': 200}`               | Animation settings for the widget.                                          |
-| `container_padding`  | dict | `{'top': 0, 'left': 0, 'bottom': 0, 'right': 0}`      | Explicitly set padding inside widget container.                            |
-| `container_shadow`   | dict   | `None`                  | Container shadow options.                       |
-| `label_shadow`         | dict   | `None`                  | Label shadow options.                 |
 | `libre_menu` |    dict    | See below | Configuration for the Libre Hardware Monitor menu. |
 ## Example Configuration (GPU Temperature)
 
@@ -42,15 +40,15 @@
 
       history_size: 60
       histogram_icons:
-        - '\u2581' # 0%
-        - '\u2581' # 10%
-        - '\u2582' # 20%
-        - '\u2583' # 30%
-        - '\u2584' # 40%
-        - '\u2585' # 50%
-        - '\u2586' # 60%
-        - '\u2587' # 70%
-        - '\u2588' # 80%+
+        - "\u2581" # 0%
+        - "\u2581" # 10%
+        - "\u2582" # 20%
+        - "\u2583" # 30%
+        - "\u2584" # 40%
+        - "\u2585" # 50%
+        - "\u2586" # 60%
+        - "\u2587" # 70%
+        - "\u2588" # 80%+
 
       # histogram_fixed_min: 0.0
       # histogram_fixed_max: 100.0
@@ -64,11 +62,6 @@
         on_left: "toggle_label"
         on_middle: "do_nothing"
         on_right: "toggle_menu"
-      label_shadow:
-        enabled: true
-        color: "black"
-        radius: 3
-        offset: [ 1, 1 ]
       libre_menu:
         blur: true
         round_corners: true
@@ -129,10 +122,6 @@
 - **server_username**: The username of the Libre Hardware Monitor server. Required if auth is enabled.
 - **server_password**: The password of the Libre Hardware Monitor server. Required if auth is enabled.
 - **callbacks**: A dictionary specifying the callbacks for mouse events. The keys are `on_left`, `on_middle`, and `on_right`, and the values are the names of the callback functions.
-- **animation:** A dictionary specifying the animation settings for the widget. It contains three keys: `enabled`, `type`, and `duration`. The `type` can be `fadeInOut` and the `duration` is the animation duration in milliseconds.
-- **container_padding**: Explicitly set padding inside widget container. Use this option to set padding inside the widget container. You can set padding for top, left, bottom and right sides of the widget container.
-- **container_shadow:** Container shadow options.
-- **label_shadow:** Label shadow options.
 - **libre_menu**: Configuration for the Libre Hardware Monitor menu. Controls visibility, appearance, and positioning.
   - **blur**: Enable blur effect for the menu.
   - **round_corners**: Enable round corners for menu.

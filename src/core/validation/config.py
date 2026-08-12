@@ -1,58 +1,43 @@
-from core.validation.bar import BAR_DEFAULTS, BAR_SCHEMA
+from typing import Any, Literal
 
-CONFIG_SCHEMA = {
-    "watch_config": {"type": "boolean", "default": True},
-    "watch_stylesheet": {
-        "type": "boolean",
-        "default": True,
-    },
-    "debug": {
-        "type": "boolean",
-        "default": False,
-        "required": False,
-    },
-    # env_file is deprecated and will be removed in the future
-    # Use load .env file from the config folder instead
-    "env_file": {
-        "type": "string",
-        "nullable": True,
-        "required": False,
-        "default": None,
-    },
-    "komorebi": {
-        "type": "dict",
-        "schema": {
-            "start_command": {
-                "type": "string",
-                "required": False,
-            },
-            "stop_command": {
-                "type": "string",
-                "required": False,
-            },
-            "reload_command": {
-                "type": "string",
-                "required": False,
-            },
-        },
-        "default": {
-            "start_command": "komorebic start --whkd",
-            "stop_command": "komorebic stop --whkd",
-            "reload_command": "komorebic reload-configuration",
-        },
-    },
-    "bars": {
-        "type": "dict",
-        "keysrules": {"type": "string"},
-        "valuesrules": BAR_SCHEMA,
-        "default": {"yasb-bar": BAR_DEFAULTS},
-    },
-    "widgets": {
-        "type": "dict",
-        "keysrules": {
-            "type": "string",
-        },
-        "valuesrules": {"type": ["string", "dict"]},
-        "default": {},
-    },
-}
+from core.validation.bar import BarConfig
+from core.validation.widgets.base_model import CustomBaseModel
+
+
+class TooltipBlurEffect(CustomBaseModel):
+    enabled: bool = False
+    dark_mode: bool = False
+    round_corners: bool = False
+    round_corners_type: Literal["normal", "small"] = "normal"
+    border_color: str = "None"
+
+
+class TooltipOptions(CustomBaseModel):
+    offset: int = 5
+    blur_effect: TooltipBlurEffect = TooltipBlurEffect()
+
+
+class KomorebiConfig(CustomBaseModel):
+    start_command: str | None = None
+    stop_command: str | None = None
+    reload_command: str | None = None
+
+
+class GlazeWMConfig(CustomBaseModel):
+    start_command: str | None = None
+    stop_command: str | None = None
+    reload_command: str | None = None
+
+
+class YasbConfig(CustomBaseModel):
+    watch_config: bool = True
+    watch_stylesheet: bool = True
+    debug: bool = False
+    update_check: bool = True
+    show_systray: bool = True
+    system_colors: bool = False
+    tooltip: TooltipOptions = TooltipOptions()
+    komorebi: KomorebiConfig = KomorebiConfig()
+    glazewm: GlazeWMConfig = GlazeWMConfig()
+    bars: dict[str, BarConfig] = {"yasb-bar": BarConfig()}
+    widgets: dict[str, str | dict[str, Any]] = {}

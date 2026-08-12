@@ -5,11 +5,11 @@ import re
 import winreg
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QCursor
-from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PyQt6.QtGui import QMouseEvent
+from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout
+from win32con import WM_INPUTLANGCHANGEREQUEST
 
-from core.utils.utilities import PopupWidget, add_shadow, build_widget_label
-from core.utils.widgets.animation_manager import AnimationManager
+from core.utils.utilities import PopupWidget, refresh_widget_style
 from core.utils.win32.bindings import (
     kernel32,
     user32,
@@ -25,69 +25,47 @@ from core.utils.win32.constants import (
     LOCALE_SNATIVECTRYNAME,
     LOCALE_SNATIVELANGNAME,
 )
-from core.validation.widgets.yasb.language import VALIDATION_SCHEMA
+from core.validation.widgets.yasb.language import LanguageConfig
 from core.widgets.base import BaseWidget
 
 
 class LanguageWidget(BaseWidget):
-    validation_schema = VALIDATION_SCHEMA
+    validation_schema = LanguageConfig
 
-    def __init__(
-        self,
-        label: str,
-        label_alt: str,
-        update_interval: int,
-        animation: dict[str, str],
-        container_padding: dict[str, int],
-        callbacks: dict[str, str],
-        language_menu: dict[str, str] = None,
-        label_shadow: dict = None,
-        container_shadow: dict = None,
-    ):
-        super().__init__(int(update_interval * 1000), class_name="language-widget")
-
-        self._show_alt_label = False
-        self._label_content = label
-        self._label_alt_content = label_alt
-        self._animation = animation
-        self._padding = container_padding
-        self._label_shadow = label_shadow
-        self._container_shadow = container_shadow
-        self._menu_config = language_menu
-
-        # Construct container
-        self._widget_container_layout: QHBoxLayout = QHBoxLayout()
-        self._widget_container_layout.setSpacing(0)
-        self._widget_container_layout.setContentsMargins(
-            self._padding["left"], self._padding["top"], self._padding["right"], self._padding["bottom"]
+    def __init__(self, config: LanguageConfig):
+        super().__init__(
+            int(config.update_interval * 1000),
+            class_name=f"language-widget {config.class_name}",
         )
-        # Initialize container
-        self._widget_container: QWidget = QWidget()
-        self._widget_container.setLayout(self._widget_container_layout)
-        self._widget_container.setProperty("class", "widget-container")
-        add_shadow(self._widget_container, self._container_shadow)
-        # Add the container to the main widget layout
-        self.widget_layout.addWidget(self._widget_container)
-
-        build_widget_label(self, self._label_content, self._label_alt_content, self._label_shadow)
+        self.config = config
+        self._show_alt_label = False
+        self._init_container()
+        self.build_widget_label(
+            self.config.label,
+            self.config.label_alt,
+        )
 
         self.register_callback("toggle_label", self._toggle_label)
         self.register_callback("update_label", self._update_label)
         self.register_callback("toggle_menu", self._toggle_menu)
 
-        self.callback_left = callbacks["on_left"]
-        self.callback_right = callbacks["on_right"]
-        self.callback_middle = callbacks["on_middle"]
+        self.callback_left = self.config.callbacks.on_left
+        self.callback_right = self.config.callbacks.on_right
+        self.callback_middle = self.config.callbacks.on_middle
         self.callback_timer = "update_label"
 
         # Cache for available languages
         self._available_languages = None
 
+        # Focused window info for activating the layout from the menu
+        self._focused_window_hwnd: int | None = None
+
+        # Caps Lock state
+        self._caps_lock_active = False
+
         self.start_timer()
 
     def _toggle_label(self):
-        if self._animation["enabled"]:
-            AnimationManager.animate(self, self._animation["type"], self._animation["duration"])
         self._show_alt_label = not self._show_alt_label
         for widget in self._widgets:
             widget.setVisible(not self._show_alt_label)
@@ -96,20 +74,26 @@ class LanguageWidget(BaseWidget):
         self._update_label()
 
     def _toggle_menu(self):
-        if self._animation["enabled"]:
-            AnimationManager.animate(self, self._animation["type"], self._animation["duration"])
         self._show_language_menu()
 
     def _update_label(self):
         active_widgets = self._widgets_alt if self._show_alt_label else self._widgets
-        active_label_content = self._label_alt_content if self._show_alt_label else self._label_content
+        active_label_content = self.config.label_alt if self._show_alt_label else self.config.label
         label_parts = re.split("(<span.*?>.*?</span>)", active_label_content)
         label_parts = [part for part in label_parts if part]
         widget_index = 0
+        prev_caps_lock = self._caps_lock_active
         try:
             lang = self._get_current_keyboard_language()
         except:
             lang = None
+
+        if self._caps_lock_active != prev_caps_lock:
+            if self._caps_lock_active:
+                self._widget_container.setProperty("class", "widget-container caps-lock-on")
+            else:
+                self._widget_container.setProperty("class", "widget-container")
+            refresh_widget_style(self._widget_container, *self._widgets, *self._widgets_alt)
 
         for part in label_parts:
             part = part.strip()
@@ -124,8 +108,8 @@ class LanguageWidget(BaseWidget):
                     active_widgets[widget_index].setText(formatted_text)
                 widget_index += 1
 
-    def _on_settings_click(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
+    def _on_settings_click(self, ev: QMouseEvent | None):
+        if ev and ev.button() == Qt.MouseButton.LeftButton:
             self._open_language_settings()
             self._menu.hide()
 
@@ -141,10 +125,10 @@ class LanguageWidget(BaseWidget):
         """Show popup menu with available languages"""
         self._menu = PopupWidget(
             self,
-            self._menu_config["blur"],
-            self._menu_config["round_corners"],
-            self._menu_config["round_corners_type"],
-            self._menu_config["border_color"],
+            self.config.language_menu.blur,
+            self.config.language_menu.round_corners,
+            self.config.language_menu.round_corners_type,
+            self.config.language_menu.border_color,
         )
         self._menu.setProperty("class", "language-menu")
 
@@ -159,33 +143,35 @@ class LanguageWidget(BaseWidget):
 
         # Get available languages
         available_languages = self._get_available_languages()
-        current_lang_id = self._get_current_language_id()
+        current_layout_handle = self._get_current_layout_handle()
 
         # Create language items
         for lang_info in available_languages:
-            self._create_language_item(main_layout, lang_info, lang_info["id"] == current_lang_id)
+            self._create_language_item(main_layout, lang_info, lang_info["id"] == current_layout_handle)
 
         footer_label = QLabel("More keyboard settings")
         footer_label.setProperty("class", "footer")
-        footer_label.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
 
         footer_label.mousePressEvent = self._on_settings_click
         main_layout.addWidget(footer_label)
 
         self._menu.adjustSize()
         self._menu.setPosition(
-            alignment=self._menu_config["alignment"],
-            direction=self._menu_config["direction"],
-            offset_left=self._menu_config["offset_left"],
-            offset_top=self._menu_config["offset_top"],
+            alignment=self.config.language_menu.alignment,
+            direction=self.config.language_menu.direction,
+            offset_left=self.config.language_menu.offset_left,
+            offset_top=self.config.language_menu.offset_top,
         )
+
+        # Focused widnow handle
+        self._focused_window_hwnd = user32.GetForegroundWindow()
+
         self._menu.show()
 
     def _create_language_item(self, layout, lang_info, is_current=False):
         """Create a language menu item"""
         container = QFrame()
         container.setProperty("class", f"language-item{' active' if is_current else ''}")
-        container.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         container.setContentsMargins(0, 0, 0, 0)
 
         container_layout = QHBoxLayout(container)
@@ -195,7 +181,7 @@ class LanguageWidget(BaseWidget):
 
         # Left: language code or icon
         lang_code_label = QLabel(lang_info["code"])
-        lang_code_label.setProperty("class", "icon" if self._menu_config["show_layout_icon"] else "code")
+        lang_code_label.setProperty("class", "icon" if self.config.language_menu.show_layout_icon else "code")
         lang_code_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         container_layout.addWidget(lang_code_label)
 
@@ -217,11 +203,11 @@ class LanguageWidget(BaseWidget):
 
         container_layout.addLayout(name_layout)
 
-        def mouse_press_handler(event):
-            if event.button() == Qt.MouseButton.LeftButton:
+        def mouse_press_handler(a0: QMouseEvent | None):
+            if a0 and a0.button() == Qt.MouseButton.LeftButton:
                 success = self._switch_to_language(lang_info["id"])
                 if not success:
-                    logging.error(f"Failed to switch to {lang_info['name']}")
+                    logging.error("Failed to switch to %s", lang_info["name"])
                 self._menu.hide()
 
         container.mousePressEvent = mouse_press_handler
@@ -268,7 +254,9 @@ class LanguageWidget(BaseWidget):
 
                 lang_name = lang_name_buf.value
                 lang_code = (
-                    self._menu_config["layout_icon"] if self._menu_config["show_layout_icon"] else lang_code_buf.value
+                    self.config.language_menu.layout_icon
+                    if self.config.language_menu.show_layout_icon
+                    else lang_code_buf.value
                 )
                 k_layouts = None
 
@@ -294,7 +282,7 @@ class LanguageWidget(BaseWidget):
                                         k_layouts, _ = winreg.QueryValueEx(key, "Layout Display Name")
                                     except FileNotFoundError:
                                         pass
-                        except WindowsError:
+                        except OSError:
                             pass
                 except:
                     pass
@@ -302,7 +290,7 @@ class LanguageWidget(BaseWidget):
                 if lang_name and lang_code:
                     languages.append(
                         {
-                            "id": lang_id,
+                            "id": layout_handle,
                             "handle": layout_handle,
                             "name": lang_name,
                             "code": lang_code,
@@ -342,6 +330,26 @@ class LanguageWidget(BaseWidget):
         except:
             return 0
 
+    def _activate_layout(self, focus_window: int | None, target_layout: int):
+        """Activate the specified keyboard layout returning focus to the specified window"""
+        result = 0
+
+        # Check if the focus window is a valid application window
+        is_valid_window = False
+        if focus_window and focus_window != 0:
+            class_name = ctypes.create_unicode_buffer(256)
+            user32.GetClassNameW(focus_window, class_name, 256)
+            shell_classes = ("Progman", "WorkerW", "Shell_TrayWnd", "Shell_SecondaryTrayWnd")
+            is_valid_window = class_name.value not in shell_classes
+
+        if is_valid_window:
+            user32.SetForegroundWindow(focus_window)
+            user32.SendMessageW(focus_window, WM_INPUTLANGCHANGEREQUEST, 0, target_layout)
+            result = target_layout
+        else:
+            result = user32.ActivateKeyboardLayout(ctypes.c_void_p(target_layout), 0)
+        return result
+
     def _switch_to_language(self, target_lang_id):
         """Switch to the specified language"""
         try:
@@ -357,10 +365,7 @@ class LanguageWidget(BaseWidget):
             if target_layout is None:
                 return False
 
-            user32.ActivateKeyboardLayout.argtypes = [ctypes.c_void_p, ctypes.c_uint]
-            user32.ActivateKeyboardLayout.restype = ctypes.c_void_p
-
-            result = user32.ActivateKeyboardLayout(ctypes.c_void_p(target_layout), 0)
+            result = self._activate_layout(self._focused_window_hwnd, target_layout)
 
             if result == 0:
                 # If activation failed, try loading the layout by string
@@ -371,7 +376,7 @@ class LanguageWidget(BaseWidget):
                     0x00000001,  # KLF_ACTIVATE
                 )
                 if loaded_layout:
-                    user32.ActivateKeyboardLayout(ctypes.c_void_p(loaded_layout), 0)
+                    self._activate_layout(self._focused_window_hwnd, loaded_layout)
 
             # Clear the language cache to force refresh
             self._available_languages = None
@@ -381,7 +386,7 @@ class LanguageWidget(BaseWidget):
 
             return True
         except Exception as e:
-            logging.error(f"Error switching language: {e}")
+            logging.error("Error switching language: %s", e)
             return False
 
     # Get the current keyboard layout
@@ -433,6 +438,10 @@ class LanguageWidget(BaseWidget):
         iso_language_code = ico_code_name.value if ico_code_name.value else language_code
         country_code = country_name.value
         full_name = f"{full_lang_name.value}"
+
+        # Caps Lock state
+        self._caps_lock_active = bool(user32.GetKeyState(0x14) & 0x0001)
+
         return {
             "language_code": language_code,
             "iso_language_code": iso_language_code,

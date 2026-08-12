@@ -1,87 +1,58 @@
-DEFAULTS = {
-    "label": "{icon}",
-    "label_alt": "{icon} {level}%",
-    "tooltip": True,
-    "icons": {
-        "normal": "\uf130",
-        "muted": "\uf131",
-    },
-    "animation": {"enabled": True, "type": "fadeInOut", "duration": 200},
-    "container_padding": {"top": 0, "left": 0, "bottom": 0, "right": 0},
-    "callbacks": {"on_left": "toggle_mute", "on_middle": "do_nothing", "on_right": "do_nothing"},
-}
+from typing import Literal
 
-VALIDATION_SCHEMA = {
-    "label": {"type": "string", "default": DEFAULTS["label"]},
-    "label_alt": {"type": "string", "default": DEFAULTS["label_alt"]},
-    "tooltip": {"type": "boolean", "required": False, "default": DEFAULTS["tooltip"]},
-    "icons": {
-        "type": "dict",
-        "schema": {
-            "normal": {"type": "string", "default": DEFAULTS["icons"]["normal"]},
-            "muted": {"type": "string", "default": DEFAULTS["icons"]["muted"]},
-        },
-        "default": DEFAULTS["icons"],
-    },
-    "animation": {
-        "type": "dict",
-        "required": False,
-        "schema": {
-            "enabled": {"type": "boolean", "default": DEFAULTS["animation"]["enabled"]},
-            "type": {"type": "string", "default": DEFAULTS["animation"]["type"]},
-            "duration": {"type": "integer", "default": DEFAULTS["animation"]["duration"]},
-        },
-        "default": DEFAULTS["animation"],
-    },
-    "container_padding": {
-        "type": "dict",
-        "required": False,
-        "schema": {
-            "top": {"type": "integer", "default": DEFAULTS["container_padding"]["top"]},
-            "left": {"type": "integer", "default": DEFAULTS["container_padding"]["left"]},
-            "bottom": {"type": "integer", "default": DEFAULTS["container_padding"]["bottom"]},
-            "right": {"type": "integer", "default": DEFAULTS["container_padding"]["right"]},
-        },
-        "default": DEFAULTS["container_padding"],
-    },
-    "label_shadow": {
-        "type": "dict",
-        "required": False,
-        "schema": {
-            "enabled": {"type": "boolean", "default": False},
-            "color": {"type": "string", "default": "black"},
-            "offset": {"type": "list", "default": [1, 1]},
-            "radius": {"type": "integer", "default": 3},
-        },
-        "default": {"enabled": False, "color": "black", "offset": [1, 1], "radius": 3},
-    },
-    "container_shadow": {
-        "type": "dict",
-        "required": False,
-        "schema": {
-            "enabled": {"type": "boolean", "default": False},
-            "color": {"type": "string", "default": "black"},
-            "offset": {"type": "list", "default": [1, 1]},
-            "radius": {"type": "integer", "default": 3},
-        },
-        "default": {"enabled": False, "color": "black", "offset": [1, 1], "radius": 3},
-    },
-    "callbacks": {
-        "type": "dict",
-        "schema": {
-            "on_left": {
-                "type": "string",
-                "default": DEFAULTS["callbacks"]["on_left"],
-            },
-            "on_middle": {
-                "type": "string",
-                "default": DEFAULTS["callbacks"]["on_middle"],
-            },
-            "on_right": {
-                "type": "string",
-                "default": DEFAULTS["callbacks"]["on_right"],
-            },
-        },
-        "default": DEFAULTS["callbacks"],
-    },
-}
+from pydantic import Field
+
+from core.validation.widgets.base_model import (
+    CallbacksConfig,
+    CustomBaseModel,
+    KeybindingConfig,
+)
+
+
+class IconsConfig(CustomBaseModel):
+    normal: str = "\uf130"
+    muted: str = "\uf131"
+
+
+class MicMenuConfig(CustomBaseModel):
+    blur: bool = True
+    round_corners: bool = True
+    round_corners_type: str = "normal"
+    border_color: str = "system"
+    alignment: str = "right"
+    direction: str = "down"
+    offset_top: int = 6
+    offset_left: int = 0
+
+
+class ProgressBarConfig(CustomBaseModel):
+    enabled: bool = False
+    progress_type: Literal["circular", "linear_horizontal", "linear_vertical"] = "circular"
+    size: int = Field(default=18, ge=1, le=200)
+    thickness: int = Field(default=3, ge=1, le=100)
+    radius: int = Field(default=0, ge=0, le=100)
+    color: str | list[str] = "#00C800"
+    background_color: str = "#3C3C3C"
+    position: Literal["left", "right"] = "left"
+    animation: bool = True
+
+
+class CallbacksMicrophoneConfig(CallbacksConfig):
+    on_left: str = "toggle_mic_menu"
+    on_middle: str = "toggle_label"
+    on_right: str = "toggle_mute"
+
+
+class MicrophoneConfig(CustomBaseModel):
+    label: str = "{icon}"
+    label_alt: str = "{icon} {level}%"
+    class_name: str = ""
+    mute_text: str = "mute"
+    tooltip: bool = True
+    scroll_step: int = Field(default=2, ge=1, le=100)
+    invert_wheel: bool = False
+    icons: IconsConfig = IconsConfig()
+    mic_menu: MicMenuConfig = MicMenuConfig()
+    progress_bar: ProgressBarConfig = ProgressBarConfig()
+    keybindings: list[KeybindingConfig] = []
+    callbacks: CallbacksMicrophoneConfig = CallbacksMicrophoneConfig()

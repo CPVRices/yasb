@@ -1,30 +1,25 @@
 import logging
 import os
 import re
-import shutil
 import sys
 from os import makedirs, path
-from pathlib import Path
-from sys import argv, exit
-from typing import Union
+from typing import Any, cast
 from xml.dom import SyntaxErr
 
-from cerberus import Validator, schema
-from yaml import dump, safe_load
+from pydantic import ValidationError
+from yaml import safe_load
 from yaml.parser import ParserError
 
-import settings
 from core.utils.alert_dialog import raise_info_alert
 from core.utils.css_processor import CSSProcessor
-from core.validation.config import CONFIG_SCHEMA
+from core.utils.validation_errors import format_pydantic_errors_to_yaml
+from core.validation.config import YasbConfig
+from settings import DEFAULT_CONFIG_DIRECTORY, DEFAULT_CONFIG_FILENAME, DEFAULT_STYLES_FILENAME, GITHUB_URL
 
-SRC_CONFIGURATION_DIR = os.path.dirname(sys.executable) if getattr(sys, "frozen", False) else os.path.dirname(argv[0])
-HOME_CONFIGURATION_DIR = path.join(Path.home(), settings.DEFAULT_CONFIG_DIRECTORY)
-HOME_STYLES_PATH = path.normpath(path.join(HOME_CONFIGURATION_DIR, settings.DEFAULT_STYLES_FILENAME))
-HOME_CONFIG_PATH = path.normpath(path.join(HOME_CONFIGURATION_DIR, settings.DEFAULT_CONFIG_FILENAME))
-DEFAULT_STYLES_PATH = path.normpath(path.join(SRC_CONFIGURATION_DIR, settings.DEFAULT_STYLES_FILENAME))
-DEFAULT_CONFIG_PATH = path.normpath(path.join(SRC_CONFIGURATION_DIR, settings.DEFAULT_CONFIG_FILENAME))
-GITHUB_ISSUES_URL = f"{settings.GITHUB_URL}/issues"
+HOME_CONFIGURATION_DIR = DEFAULT_CONFIG_DIRECTORY
+HOME_STYLES_PATH = path.normpath(path.join(HOME_CONFIGURATION_DIR, DEFAULT_STYLES_FILENAME))
+HOME_CONFIG_PATH = path.normpath(path.join(HOME_CONFIGURATION_DIR, DEFAULT_CONFIG_FILENAME))
+GITHUB_ISSUES_URL = f"{GITHUB_URL}/issues"
 
 
 class ConfigValidationError(TypeError):
@@ -35,50 +30,28 @@ class ConfigValidationError(TypeError):
         self.filepath = filepath
 
 
-try:
-    yaml_validator = Validator(CONFIG_SCHEMA)
-except schema.SchemaError:
-    logging.exception("Failed to load configuration schema for yaml validator.")
+def is_first_run() -> bool:
+    """Return True when neither config file nor stylesheet exist yet."""
+    return not path.isfile(HOME_CONFIG_PATH) and not path.isfile(HOME_STYLES_PATH)
 
 
 def get_config_dir() -> str:
     if path.isdir(HOME_CONFIGURATION_DIR):
         return HOME_CONFIGURATION_DIR
-    else:
-        try:
-            makedirs(HOME_CONFIGURATION_DIR)
-            return HOME_CONFIGURATION_DIR
-        except OSError:
-            logging.error(f"Failed to create configuration directory at {HOME_CONFIGURATION_DIR}.")
-            return SRC_CONFIGURATION_DIR
+    try:
+        makedirs(HOME_CONFIGURATION_DIR)
+        return HOME_CONFIGURATION_DIR
+    except OSError:
+        logging.error("Failed to create configuration directory at %s.", HOME_CONFIGURATION_DIR)
+        return HOME_CONFIGURATION_DIR
 
 
 def get_config_path() -> str:
-    if path.isdir(HOME_CONFIGURATION_DIR) and path.isfile(HOME_CONFIG_PATH):
-        return HOME_CONFIG_PATH
-    elif not path.isfile(HOME_CONFIG_PATH):
-        # Create default config file if it doesn't exist
-        if not path.isdir(HOME_CONFIGURATION_DIR):
-            makedirs(HOME_CONFIGURATION_DIR)
-        shutil.copy2(DEFAULT_CONFIG_PATH, HOME_CONFIG_PATH)
-        logging.info(f"Created default config file at {HOME_CONFIG_PATH}")
-        return HOME_CONFIG_PATH
-    else:
-        return DEFAULT_CONFIG_PATH
+    return HOME_CONFIG_PATH
 
 
 def get_stylesheet_path() -> str:
-    if path.isdir(HOME_CONFIGURATION_DIR) and path.isfile(HOME_STYLES_PATH):
-        return HOME_STYLES_PATH
-    elif not path.isfile(HOME_STYLES_PATH):
-        # Create default stylesheet if it doesn't exist
-        if not path.isdir(HOME_CONFIGURATION_DIR):
-            makedirs(HOME_CONFIGURATION_DIR)
-        shutil.copy2(DEFAULT_STYLES_PATH, HOME_STYLES_PATH)
-        logging.info(f"Created default stylesheet at {HOME_STYLES_PATH}")
-        return HOME_STYLES_PATH
-    else:
-        return DEFAULT_STYLES_PATH
+    return HOME_STYLES_PATH
 
 
 def parse_env(obj):
@@ -101,34 +74,50 @@ def parse_env(obj):
     return obj
 
 
-def get_config(show_error_dialog=False) -> Union[dict, None]:
+def get_config(show_error_dialog: bool = False) -> YasbConfig | None:
     config_path = get_config_path()
 
     try:
         with open(config_path, encoding="utf-8") as yaml_stream:
             config = safe_load(yaml_stream)
 
-        if yaml_validator.validate(config, CONFIG_SCHEMA):
-            return parse_env(yaml_validator.normalized(config))
-        else:
-            pretty_errors = dump(yaml_validator.errors)
-            logging.error(f"The config file '{config_path}' contains validation errors. Please fix:\n{pretty_errors}")
+        if config is None:
+            config = {}
+
+        try:
+            # Parse environment variables in raw config
+            config = parse_env(config)
+
+            # Validate and normalize with Pydantic
+            validated_config = YasbConfig(**cast(dict[str, Any], config if isinstance(config, dict) else {}))
+
+            # Return as dict for compatibility with the rest of the app
+            return validated_config
+
+        except ValidationError as e:
+            validation_errors = format_pydantic_errors_to_yaml(e)
+            logging.error(
+                "The config file '%s' contains validation errors. Please fix:\n%s",
+                config_path,
+                validation_errors,
+            )
             if show_error_dialog:
                 raise_info_alert(
                     title="Failed to load recently updated config file.",
                     msg=f"The file '{config_path}' contains validation error(s) and has not been loaded.",
                     informative_msg="For more information, click 'Show Details'.",
-                    additional_details=pretty_errors,
+                    additional_details=validation_errors,
                 )
+            return None
     except ParserError as e:
-        logging.error(f"The file '{config_path}' contains Parser Error(s). Please fix:\n{str(e)}")
+        logging.error("The file '%s' contains Parser Error(s). Please fix:\n%s", config_path, e)
     except FileNotFoundError:
-        logging.error(f"The file '{config_path}' could not be found. Does it exist?")
+        logging.error("The file '%s' could not be found. Does it exist?", config_path)
     except OSError:
-        logging.error(f"The file '{config_path}' could not be read. Do you have read/write permissions?")
+        logging.error("The file '%s' could not be read. Do you have read/write permissions?", config_path)
 
 
-def get_stylesheet(show_error_dialog=False) -> Union[str, None]:
+def get_stylesheet(show_error_dialog: bool = False) -> str | None:
     styles_path = get_stylesheet_path()
     try:
         css_processor = CSSProcessor(styles_path)
@@ -136,7 +125,7 @@ def get_stylesheet(show_error_dialog=False) -> Union[str, None]:
         return css_content
 
     except SyntaxErr as e:
-        logging.error(f"The file '{styles_path}' contains Syntax Error(s). Please fix:\n{str(e)}")
+        logging.error("The file '%s' contains Syntax Error(s). Please fix:\n%s", styles_path, e)
         if show_error_dialog:
             raise_info_alert(
                 title="Failed to load recently updated stylesheet file.",
@@ -145,25 +134,26 @@ def get_stylesheet(show_error_dialog=False) -> Union[str, None]:
                 additional_details=str(e),
             )
     except FileNotFoundError:
-        logging.error(f"The file '{styles_path}' could not be found. Does it exist?")
+        logging.error("The file '%s' could not be found. Does it exist?", styles_path)
     except OSError:
-        logging.error(f"The file '{styles_path}' could not be read. Do you have read/write permissions?")
+        logging.error("The file '%s' could not be read. Do you have read/write permissions?", styles_path)
     return None
 
 
-def get_config_and_stylesheet() -> tuple[dict, str]:
+def get_config_and_stylesheet() -> tuple[YasbConfig, str]:
     config = get_config()
     stylesheet = get_stylesheet()
+    error_msg: str | None = None
 
     if not config:
         error_msg = "User config file could not be loaded. Exiting Application."
     elif not stylesheet:
         error_msg = "User stylesheet could not be loaded. Exiting Application."
-    elif not config["bars"]:
+    elif not config.bars:
         error_msg = "No bars have been configured. Please edit the config to add a status bar."
     else:
         return config, stylesheet
 
     if error_msg:
         logging.error(error_msg)
-        exit(1)
+        sys.exit(1)

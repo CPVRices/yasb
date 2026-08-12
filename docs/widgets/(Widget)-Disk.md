@@ -1,17 +1,19 @@
 # Disk Widget Configuration
+
+Shows how much storage space you have left on your local drives. You can customize warning thresholds, add circular progress indicators, click to open a drive in File Explorer, and click to show a popup monitoring multiple drives at the same time.
+
 | Option            | Type    | Default                                                                 | Description                                                                 |
 |-------------------|---------|-------------------------------------------------------------------------|-----------------------------------------------------------------------------|
-| `label`           | string  | `'{volume_label} {space[used][percent]}'`                        | The format string for the memory widget. Displays free and total virtual memory. |
-| `label_alt`       | string  | `'{volume_label} {space[used][gb]} / {space[total][gb]}'`        | The alternative format string for the memory widget. Displays virtual and swap memory percentages. |
+| `label`           | string  | `'{volume_label} {space[used][percent]}'`                        | The format string for the disk widget. |
+| `label_alt`       | string  | `'{volume_label} {space[used][gb]} / {space[total][gb]}'`        | The alternative format string for the disk widget. |
+| `class_name`      | string  | `""`                                                                                  | Additional CSS class name for the widget.                                    |
 | `volume_label`       | string  | `'C'`        | Partition which you want to show in the bar |
-| `decimal_display` | integer | `1`                                                                  | The number of decimal to show, defaul 1 (min 0 max 3) |
+| `decimal_display` | integer | `1`                                                                  | The number of decimal places to show, default 1 (min 0 max 3) |
 | `update_interval` | integer | `60`                                                                  | The interval in seconds to update the disk widget. Must be between 0 and 3600. |
-| `group_label` | dict | `{'volume_labels': ["C"], 'show_label_name': True, 'blur': True, 'round_corners': True, 'round_corners_type': 'normal','border_color': 'System', 'alignment': 'right', 'direction': 'down', 'offset_top': 6, 'offset_left': 0}` | Group labels for multiple disks. This will show the labels of multiple disks in a popup window. |
+| `group_label` | dict | `{'volume_labels': ["C"], 'show_label_name': true, 'blur': true, 'round_corners': true, 'round_corners_type': 'normal','border_color': 'System', 'alignment': 'right', 'direction': 'down', 'offset_top': 6, 'offset_left': 0}` | Group labels for multiple disks. This will show the labels of multiple disks in a popup window. |
 | `callbacks`       | dict    | `{'on_left': 'do_nothing', 'on_middle': 'do_nothing', 'on_right': "exec explorer C:\\"}` | Callbacks for mouse events. |
-| `container_padding`  | dict | `{'top': 0, 'left': 0, 'bottom': 0, 'right': 0}`      | Explicitly set padding inside widget container. |
-| `animation`         | dict    | `{'enabled': True, 'type': 'fadeInOut', 'duration': 200}`               | Animation settings for the widget.                                          |
-| `container_shadow`   | dict   | `None`                  | Container shadow options.                       |
-| `label_shadow`         | dict   | `None`                  | Label shadow options.                 |
+| `disk_thresholds` | dict  | `{'low': 25, 'medium': 50, 'high': 90}`                                 | Thresholds for Disk usage levels. |
+| `progress_bar`       | dict    | `{'enabled': false, 'progress_type': 'circular', 'position': 'left', 'size': 18, 'thickness': 3, 'radius': 0, 'color': '#00C800', 'background_color': '#3C3C3C', 'animation': true}` | Progress bar settings.    |
 
 ## Example Configuration
 
@@ -36,20 +38,21 @@ disk:
         on_left: "toggle_group"
         on_middle: "toggle_label"
         on_right: "exec explorer C:\\" # Open disk C in file explorer
-      label_shadow:
-        enabled: true
-        color: "black"
-        radius: 3
-        offset: [ 1, 1 ]
+      disk_thresholds:
+          low: 25
+          medium: 50
+          high: 90
 ```
 
 ## Description of Options
 
 - **label:** The format string for the disk widget. Displays free space in percent.
 - **label_alt:** The alternative format string for the disk widget.
+- **class_name:** Additional CSS class name for the widget. This allows for custom styling.
 - **volume_label:** Partition/volume which you want to show in the bar.
-- **decimal_display:** The number of decimal to show, defaul 1 (min 0 max 3).
+- **decimal_display:** The number of decimal places to show, default 1 (min 0 max 3).
 - **update_interval:** The interval in seconds to update the disk widget. Must be between 0 and 3600.
+- **disk_thresholds:** A dictionary specifying the thresholds for disk usage levels. The keys are `low`, `medium`, and `high`, and the values are the percentage thresholds. Based on the current disk usage, a CSS class is applied to the label: `status-low`, `status-medium`, `status-high`, or `status-critical`.
 - **group_label:** Group labels for multiple disks. This will show the labels of multiple disks in a popup window.
   - **volume_labels:** List of volume labels to show in the group label.
   - **show_label_name:** Show the label name in the group label.
@@ -62,18 +65,59 @@ disk:
   - **offset_top:** Offset from the top of the screen.
   - **offset_left:** Offset from the left of the screen.
 - **callbacks:** A dictionary specifying the callbacks for mouse events. The keys are `on_left`, `on_middle`, and `on_right`, and the values are the names of the callback functions.
-- **container_padding:** Explicitly set padding inside widget container.
-- **animation:** A dictionary specifying the animation settings for the widget. It contains three keys: `enabled`, `type`, and `duration`. The `type` can be `fadeInOut` and the `duration` is the animation duration in milliseconds.
-- **container_shadow:** Container shadow options.
-- **label_shadow:** Label shadow options.
+  - **Available callbacks:** `toggle_label`, `toggle_group`, `do_nothing`, or `exec <command>`.
+- **progress_bar**: A dictionary containing settings for the progress bar. It includes:
+  - **enabled**: Whether the progress bar is enabled.
+  - **progress_type**: The type of progress bar. Options are `"circular"`, `"linear_horizontal"`, or `"linear_vertical"`.
+  - **position**: The position of the progress bar, either "left" or "right".
+  - **size**: The length of the progress bar (or diameter if circular). Minimum is 1, maximum is 200.
+  - **thickness**: The thickness of the progress bar. Minimum is 1, maximum is 100.
+  - **radius**: The border radius for the linear progress bar corners. Minimum is 0, maximum is 100.
+  - **color**: The color of the progress bar. Color can be a single color or a gradient. For example, `color: "#57948a"` or `color: ["#57948a", "#ff0000"]` for a gradient.
+  - **background_color**: The background color of the progress bar.
+  - **animation**: Whether to enable smooth change of the progress bar value.
+
+## Label Format Variables
+The following variables can be used in `label` and `label_alt`:
+
+| Variable | Description | Example Output |
+|----------|-------------|----------------|
+| `{volume_label}` | The drive letter | `C` |
+| `{space[total][mb]}` | Total space in MB | `953674.32MB` |
+| `{space[total][gb]}` | Total space in GB | `931.51GB` |
+| `{space[total][tb]}` | Total space in TB | `0.91TB` |
+| `{space[free][mb]}` | Free space in MB | `476837.16MB` |
+| `{space[free][gb]}` | Free space in GB | `465.66GB` |
+| `{space[free][tb]}` | Free space in TB | `0.45TB` |
+| `{space[free][percent]}` | Free space percentage | `50.0%` |
+| `{space[used][mb]}` | Used space in MB | `476837.16MB` |
+| `{space[used][gb]}` | Used space in GB | `465.85GB` |
+| `{space[used][tb]}` | Used space in TB | `0.45TB` |
+| `{space[used][percent]}` | Used space percentage | `50.0%` |
+
+## Disk Threshold Classes
+Based on `disk_thresholds` configuration, the widget applies CSS classes to style the label based on disk usage:
+
+| Disk Usage | CSS Class Applied |
+|------------|-------------------|
+| 0% - `low` | `status-low` |
+| `low` - `medium` | `status-medium` |
+| `medium` - `high` | `status-high` |
+| Above `high` | `status-critical` |
 
 ## Widget Style
 ```css
 .disk-widget {}
+.disk-widget.your_class {} /* If you are using class_name option */
 .disk-widget .widget-container {}
 .disk-widget .widget-container .label {}
 .disk-widget .widget-container .label.alt {}
 .disk-widget .widget-container .icon {}
+/* Threshold status classes */
+.disk-widget .widget-container .label.status-low {}
+.disk-widget .widget-container .label.status-medium {}
+.disk-widget .widget-container .label.status-high {}
+.disk-widget .widget-container .label.status-critical {}
 /* Group label style */
 .disk-group {}
 .disk-group-row {}
@@ -81,6 +125,25 @@ disk:
 .disk-group-label-size {}
 .disk-group-label-bar {}
 .disk-group-label-bar::chunk {}
+
+/* Disk progress bar styles if enabled */
+.disk-widget .progress-container {} 
+```
+
+## Example Style for Threshold Classes
+```css
+.disk-widget .widget-container .label.status-low {
+    color: #a6e3a1; /* Green */
+}
+.disk-widget .widget-container .label.status-medium {
+    color: #f9e2af; /* Yellow */
+}
+.disk-widget .widget-container .label.status-high {
+    color: #fab387; /* Orange */
+}
+.disk-widget .widget-container .label.status-critical {
+    color: #f38ba8; /* Red */
+}
 ```
 
 ## Example Style for Group Label
@@ -128,7 +191,6 @@ disk:
         label: "<span>\uf473</span>"
         label_alt: "<span>\uf473</span>"
         group_label:
-          enabled: true
           volume_labels: ["C", "D", "E", "F"]
           show_label_name: true 
           blur: True

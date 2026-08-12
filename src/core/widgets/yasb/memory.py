@@ -1,118 +1,184 @@
-import logging
+import collections
 import re
 
-import psutil
 from humanize import naturalsize
-from PyQt6.QtCore import QTimer
-from PyQt6.QtWidgets import QHBoxLayout, QLabel, QWidget
+from PyQt6.QtWidgets import QLabel
 
-from core.utils.utilities import add_shadow, build_widget_label
-from core.utils.widgets.animation_manager import AnimationManager
-from core.validation.widgets.yasb.memory import VALIDATION_SCHEMA
+from core.utils.stat_popup import build_stat_popup
+from core.utils.utilities import (
+    PopupWidget,
+    build_progress_widget,
+    refresh_widget_style,
+)
+from core.validation.widgets.yasb.memory import MemoryConfig
 from core.widgets.base import BaseWidget
+from core.widgets.services.memory.memory_api import MemoryData, MemoryWorker, SwapMemory, VirtualMemory
 
 
 class MemoryWidget(BaseWidget):
-    validation_schema = VALIDATION_SCHEMA
+    validation_schema = MemoryConfig
 
-    _instances: list["MemoryWidget"] = []
-    _shared_timer: QTimer | None = None
+    _instances: list[MemoryWidget] = []
+    _worker: MemoryWorker | None = None
 
-    def __init__(
-        self,
-        label: str,
-        label_alt: str,
-        update_interval: int,
-        animation: dict[str, str],
-        callbacks: dict[str, str],
-        memory_thresholds: dict[str, int],
-        container_padding: dict[str, int],
-        label_shadow: dict = None,
-        container_shadow: dict = None,
-    ):
-        super().__init__(class_name="memory-widget")
-        self._memory_thresholds = memory_thresholds
+    def __init__(self, config: MemoryConfig):
+        super().__init__(class_name=f"memory-widget {config.class_name}")
+        self.config = config
         self._show_alt_label = False
-        self._label_content = label
-        self._label_alt_content = label_alt
-        self._animation = animation
-        self._padding = container_padding
-        self._label_shadow = label_shadow
-        self._container_shadow = container_shadow
-        # Construct container
-        self._widget_container_layout: QHBoxLayout = QHBoxLayout()
-        self._widget_container_layout.setSpacing(0)
-        self._widget_container_layout.setContentsMargins(
-            self._padding["left"], self._padding["top"], self._padding["right"], self._padding["bottom"]
-        )
-        # Initialize container
-        self._widget_container: QWidget = QWidget()
-        self._widget_container.setLayout(self._widget_container_layout)
-        self._widget_container.setProperty("class", "widget-container")
-        add_shadow(self._widget_container, self._container_shadow)
-        # Add the container to the main widget layout
-        self.widget_layout.addWidget(self._widget_container)
+        self._last_data: MemoryData | None = None
+        self._history: collections.deque = collections.deque(maxlen=config.menu.graph_history_size)
 
-        build_widget_label(self, self._label_content, self._label_alt_content, self._label_shadow)
+        self.progress_widget = None
+        self.progress_widget = build_progress_widget(self, self.config.progress_bar.model_dump())
+        self._init_container()
+        self.build_widget_label(self.config.label, self.config.label_alt)
 
         self.register_callback("toggle_label", self._toggle_label)
+        self.register_callback("toggle_menu", self._show_popup)
 
-        self.callback_left = callbacks["on_left"]
-        self.callback_right = callbacks["on_right"]
-        self.callback_middle = callbacks["on_middle"]
+        self.callback_left = self.config.callbacks.on_left
+        self.callback_right = self.config.callbacks.on_right
+        self.callback_middle = self.config.callbacks.on_middle
 
         # Add this instance to the shared instances list
         if self not in MemoryWidget._instances:
             MemoryWidget._instances.append(self)
 
-        if update_interval > 0 and MemoryWidget._shared_timer is None:
-            MemoryWidget._shared_timer = QTimer(self)
-            MemoryWidget._shared_timer.setInterval(update_interval)
-            MemoryWidget._shared_timer.timeout.connect(MemoryWidget._notify_instances)
-            MemoryWidget._shared_timer.start()
+        # Start the shared memory worker thread
+        if self.config.update_interval > 0 and MemoryWidget._worker is None:
+            worker = MemoryWorker.get_instance(self.config.update_interval)
+            worker.data_ready.connect(MemoryWidget._on_data_ready)
+            worker.start()
+            MemoryWidget._worker = worker
 
-        MemoryWidget._notify_instances()
+        self._show_placeholder()
+
+    def _show_placeholder(self):
+        """Display placeholder (zero/default) memory data."""
+        virtual_mem = VirtualMemory(total=0, available=0, percent=0.0, used=0, free=0)
+        swap_mem = SwapMemory(total=0, used=0, free=0, percent=0.0)
+        self._update_label(virtual_mem, swap_mem)
 
     @classmethod
-    def _notify_instances(cls):
-        """Fetch memory data and update all instances."""
-        if not cls._instances:
+    def _on_data_ready(cls, data: MemoryData):
+        """Slot called on main thread when new memory data arrives from the worker."""
+        for inst in cls._instances[:]:
+            try:
+                inst._last_data = data
+                inst._update_label(data.virtual, data.swap)
+                if inst.config.menu.enabled:
+                    inst._history.append(data.virtual.percent)
+                    inst._update_popup(data)
+            except RuntimeError:
+                cls._instances.remove(inst)
+
+    def _update_popup(self, data: MemoryData):
+        """Push fresh data into the open popup if visible."""
+        popup = PopupWidget._open_popups.get(id(self))
+        if popup is None or not popup.isVisible():
             return
-
         try:
-            virtual_mem = psutil.virtual_memory()
-            swap_mem = psutil.swap_memory()
+            if popup._graph is not None:
+                popup._graph.set_data(list(self._history))
+            format_size = popup._format_size
+            labels = popup._stat_labels
+            labels["used"].setText(format_size(data.virtual.used))
+            labels["total"].setText(format_size(data.virtual.total))
+            labels["cached"].setText(format_size(data.cached_bytes))
+            labels["avail"].setText(format_size(data.virtual.available))
+            labels["swap"].setText(format_size(data.swap.used))
+            labels["util"].setText(f"{data.virtual.percent:.0f}%")
+        except Exception:
+            pass
 
-            # Update each instance using the shared data
-            for inst in cls._instances[:]:
-                try:
-                    inst._update_label(virtual_mem, swap_mem)
-                except RuntimeError:
-                    cls._instances.remove(inst)
+    def _show_popup(self):
+        """Build and show or toggle the memory details popup."""
+        if not self.config.menu.enabled:
+            return
+        menu = self.config.menu
+        format_size = lambda v: naturalsize(v, True, False, "%.1f").replace("i", "")
+        data = self._last_data
 
-        except Exception as e:
-            logging.error(f"Error updating shared memory data: {e}")
+        stat_rows = [
+            (
+                "In use",
+                "used",
+                format_size(data.virtual.used) if data else "\u2014",
+                "All memory",
+                "total",
+                format_size(data.virtual.total) if data else "\u2014",
+            ),
+            (
+                "Cached",
+                "cached",
+                format_size(data.cached_bytes) if data else "\u2014",
+                "Available",
+                "avail",
+                format_size(data.virtual.available) if data else "\u2014",
+            ),
+            (
+                "Swap used",
+                "swap",
+                format_size(data.swap.used) if data else "\u2014",
+                "Utilization",
+                "util",
+                f"{data.virtual.percent:.0f}%" if data else "\u2014",
+            ),
+        ]
+
+        popup = build_stat_popup(
+            parent=self,
+            menu_config=menu,
+            popup_class_name="memory-popup",
+            title="<b>Memory</b> Usage",
+            history=self._history,
+            stat_rows=stat_rows,
+            graph_class="memory-graph",
+        )
+        popup._format_size = format_size
+
+        if menu.show_graph and popup._graph is not None:
+            main_layout = popup.layout()
+            graph_container = popup._graph.parentWidget()
+            graph_idx = main_layout.indexOf(graph_container)
+            util_label = QLabel("Utilization")
+            util_label.setProperty("class", "graph-title")
+            main_layout.insertWidget(graph_idx, util_label)
+
+        popup.show()
 
     def _update_label(self, virtual_mem, swap_mem):
         """Update label using shared memory data."""
 
         active_widgets = self._widgets_alt if self._show_alt_label else self._widgets
-        active_label_content = self._label_alt_content if self._show_alt_label else self._label_content
+        active_label_content = self.config.label_alt if self._show_alt_label else self.config.label
         label_parts = re.split("(<span.*?>.*?</span>)", active_label_content)
         label_parts = [part for part in label_parts if part]
         widget_index = 0
 
+        _round = lambda value: round(value) if self.config.hide_decimal else value
+        _naturalsize = lambda value: naturalsize(value, True, True, "%.0f" if self.config.hide_decimal else "%.1f")
         label_options = {
-            "{virtual_mem_free}": naturalsize(virtual_mem.free, True, True),
-            "{virtual_mem_percent}": virtual_mem.percent,
-            "{virtual_mem_total}": naturalsize(virtual_mem.total, True, True),
-            "{virtual_mem_avail}": naturalsize(virtual_mem.available, True, True),
-            "{virtual_mem_used}": naturalsize(virtual_mem.used, True, True),
-            "{virtual_mem_outof}": f"{naturalsize(virtual_mem.used, True, True)} / {naturalsize(virtual_mem.total, True, True)}",
-            "{swap_mem_free}": naturalsize(swap_mem.free, True, True),
-            "{swap_mem_percent}": swap_mem.percent,
-            "{swap_mem_total}": naturalsize(swap_mem.total, True, True),
+            "{virtual_mem_free}": _naturalsize(virtual_mem.free),
+            "{virtual_mem_percent}": _round(virtual_mem.percent),
+            "{virtual_mem_total}": _naturalsize(virtual_mem.total),
+            "{virtual_mem_avail}": _naturalsize(virtual_mem.available),
+            "{virtual_mem_used}": _naturalsize(virtual_mem.used),
+            "{virtual_mem_outof}": f"{_naturalsize(virtual_mem.used)} / {_naturalsize(virtual_mem.total)}",
+            "{swap_mem_free}": _naturalsize(swap_mem.free),
+            "{swap_mem_percent}": _round(swap_mem.percent),
+            "{swap_mem_total}": _naturalsize(swap_mem.total),
+            "{histogram}": "".join([self._get_histogram_bar(virtual_mem.percent, 0, 100)]),
         }
+
+        if self.config.progress_bar.enabled and self.progress_widget:
+            if self._widget_container_layout.indexOf(self.progress_widget) == -1:
+                self._widget_container_layout.insertWidget(
+                    0 if self.config.progress_bar.position == "left" else self._widget_container_layout.count(),
+                    self.progress_widget,
+                )
+            self.progress_widget.set_value(virtual_mem.percent)
+
         for part in label_parts:
             part = part.strip()
             for fmt_str, value in label_options.items():
@@ -126,28 +192,35 @@ class MemoryWidget(BaseWidget):
                     active_widgets[widget_index].setText(part)
                     # Set memory threshold as property
                     label_class = "label alt" if self._show_alt_label else "label"
-                    active_widgets[widget_index].setProperty(
-                        "class", f"{label_class} status-{self._get_virtual_memory_threshold(virtual_mem.percent)}"
-                    )
-                    active_widgets[widget_index].setStyleSheet("")
+                    new_class = f"{label_class} status-{self._get_virtual_memory_threshold(virtual_mem.percent)}"
+                    if active_widgets[widget_index].property("class") != new_class:
+                        active_widgets[widget_index].setProperty("class", new_class)
+                        refresh_widget_style(active_widgets[widget_index])
                 widget_index += 1
 
     def _toggle_label(self):
-        if self._animation["enabled"]:
-            AnimationManager.animate(self, self._animation["type"], self._animation["duration"])
         self._show_alt_label = not self._show_alt_label
         for widget in self._widgets:
             widget.setVisible(not self._show_alt_label)
         for widget in self._widgets_alt:
             widget.setVisible(self._show_alt_label)
-        MemoryWidget._notify_instances()
+        # Re-render with last known data
+        if self._last_data is not None:
+            self._update_label(self._last_data.virtual, self._last_data.swap)
 
-    def _get_virtual_memory_threshold(self, virtual_memory_percent) -> str:
-        if virtual_memory_percent <= self._memory_thresholds["low"]:
+    def _get_virtual_memory_threshold(self, virtual_memory_percent: float) -> str:
+        if virtual_memory_percent <= self.config.memory_thresholds.low:
             return "low"
-        elif self._memory_thresholds["low"] < virtual_memory_percent <= self._memory_thresholds["medium"]:
+        elif self.config.memory_thresholds.low < virtual_memory_percent <= self.config.memory_thresholds.medium:
             return "medium"
-        elif self._memory_thresholds["medium"] < virtual_memory_percent <= self._memory_thresholds["high"]:
+        elif self.config.memory_thresholds.medium < virtual_memory_percent <= self.config.memory_thresholds.high:
             return "high"
-        elif self._memory_thresholds["high"] < virtual_memory_percent:
+        elif self.config.memory_thresholds.high < virtual_memory_percent:
             return "critical"
+
+    def _get_histogram_bar(self, num: float, num_min: float, num_max: float) -> str:
+        if num_max == num_min:
+            return self.config.histogram_icons[0]
+        bar_index = int((num - num_min) / (num_max - num_min) * (len(self.config.histogram_icons) - 1))
+        bar_index = min(max(bar_index, 0), len(self.config.histogram_icons) - 1)
+        return self.config.histogram_icons[bar_index]

@@ -1,4 +1,7 @@
 # Komorebi Workspaces Widget
+
+Displays your Komorebi workspaces with clear indicators for active and populated states. You can switch workspaces by clicking or scrolling, toggle between tiling and floating layers, and see running app icons directly on the workspace buttons.
+
 | Option                     | Type    | Default                  | Description                                                                 |
 |----------------------------|---------|--------------------------|-----------------------------------------------------------------------------|
 | `label_offline`          | string  | `'Komorebi Offline'`     | The label to display when Komorebi is offline.                              |
@@ -6,18 +9,14 @@
 | `label_workspace_active_btn` | string | `'{index}'`              | The format string for the active workspace button.                          |
 | `label_workspace_populated_btn` | string | `'{index}'`              | The format string for the populated workspace button.                          |
 | `label_default_name`       | string  | `''`                     | The default name for workspaces.                                            |
-| `label_float_override`     | string  | `'Override Active'`                     | The label to display when Komorebi is Float Override Active. |
+| `label_float_override`     | string  | `'Override Active'`                     | The label to display when Komorebi's float override is active. |
 | `toggle_workspace_layer`  | dict    | `{'enabled': false, 'tiling_label': 'Tiling', 'floating_label': 'Floating'}` | Controls toggling between tiling and floating layers.  |
-| `app_icons`    | dict    | `{'enabled_populated': False, 'enabled_active': False, 'size': 16, 'max_icons': 0, 'hide_label': False, 'hide_duplicates': False, 'hide_floating': False}` | Controls the display of opened app icons per workspace. |
+| `app_icons`    | dict    | `{'enabled_populated': false, 'enabled_active': false, 'size': 16, 'max_icons': 0, 'hide_label': false, 'hide_duplicates': false, 'hide_floating': false}` | Controls the display of opened app icons per workspace. |
 | `hide_if_offline`       | boolean | `false`         | Whether to hide the widget if Komorebi is offline.                          |
 | `label_zero_index`        | boolean | `false`    | Whether to use zero-based indexing for workspace labels.                    |
 | `hide_empty_workspaces`  | boolean | `false`      | Whether to hide empty workspaces.                                           |
 | `enable_scroll_switching` | boolean | `false`      | Enable scroll switching between workspaces.                                 |
 | `reverse_scroll_direction` | boolean | `false`      | Reverse scroll direction.                                                  |
-| `animation`  | boolean | `false`      | Buttons animation.                                           |
-| `container_padding`  | dict | `{'top': 0, 'left': 0, 'bottom': 0, 'right': 0}`      | Explicitly set padding inside widget container.
-| `container_shadow`      | dict    | `None`                  | Container shadow options.                                |
-| `btn_shadow`            | dict    | `None`                  | Workspace button shadow options.                         |
 
 ## Example Configuration
 
@@ -33,7 +32,6 @@ komorebi_workspaces:
     label_zero_index: false
     hide_empty_workspaces: false
     hide_if_offline: false
-    animation: true
     toggle_workspace_layer:
       enabled: false
       tiling_label: "Tiling"
@@ -46,16 +44,6 @@ komorebi_workspaces:
       hide_label: false
       hide_duplicates: false
       hide_floating: false
-    container_padding: 
-      top: 0
-      left: 8
-      bottom: 0
-      right: 8
-    btn_shadow:
-      enabled: true
-      color: "black"
-      radius: 3
-      offset: [ 1, 1 ]
 ```
 
 ## Description of Options
@@ -82,17 +70,14 @@ komorebi_workspaces:
 - **hide_empty_workspaces:** Whether to hide empty workspaces.
 - **enable_scroll_switching:** Enable scroll switching between workspaces.
 - **reverse_scroll_direction:** Reverse scroll direction.
-- **animation:** Buttons animation.
-- **container_padding:** Explicitly set padding inside widget container.
-- **container_shadow:** Container shadow options.
-- **btn_shadow:** Workspace button shadow options.
-- **label_shadow:** Label shadow options for labels.
 
 ## Style
 ```css
 .komorebi-workspaces {} /*Style for widget.*/
+.komorebi-workspaces .offline-status {} /*Style for offline status text.*/
 .komorebi-workspaces .widget-container {} /*Style for widget container.*/
 .komorebi-workspaces .ws-btn {} /*Style for buttons.*/
+.komorebi-workspaces .ws-btn.empty {} /*Style for empty workspace buttons.*/
 .komorebi-workspaces .ws-btn.populated {} /*Style for buttons which contain window and are not empty.*/
 .komorebi-workspaces .ws-btn.active {} /*Style for the active workspace button.*/
 .komorebi-workspaces .ws-btn.button-1 {} /*Style for first button.*/

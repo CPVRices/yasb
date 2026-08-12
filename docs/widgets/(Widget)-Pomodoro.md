@@ -5,6 +5,7 @@ This widget implements a Pomodoro timer, which is a time management method that 
 |------------|--------|---------|-----------------------------------------------------------------------------|
 | `label`   | string | `\uf252 {remaining}` | The label format for displaying timer information. |
 | `label_alt`   | string | `{session}/{total_sessions} - {remaining}` | Alternative label format that can be toggled. |
+| `class_name`      | string  | `""` | Additional CSS class name for the widget. |
 | `work_duration` | integer | `25` | The duration of work sessions in minutes. |
 | `break_duration` | integer | `5` | The duration of regular breaks in minutes. |
 | `long_break_duration` | integer | `15` | The duration of long breaks in minutes. |
@@ -16,12 +17,9 @@ This widget implements a Pomodoro timer, which is a time management method that 
 | `session_target` | integer | `0` | Target number of sessions (0 means unlimited). |
 | `hide_on_break` | boolean | `false` | Hide the widget during break sessions. |
 | `icons` | dict | See below | Icons used for different timer states. |
-| `animation` | dict | `{'enabled': True, 'type': 'fadeInOut', 'duration': 200}` | Animation settings for the widget. |
-| `container_padding` | dict | `{'top': 0, 'left': 0, 'bottom': 0, 'right': 0}` | Explicitly set padding inside widget container. |
 | `callbacks` | dict | See below | Configure widget interaction callbacks. |
 | `menu` | dict | See below | Configure the appearance and behavior of the timer menu. |
-| `container_shadow`   | dict   | `None`                  | Container shadow options.                       |
-| `label_shadow`         | dict   | `None`                  | Label shadow options.                 |
+| `progress_bar`       | dict    | `{'enabled': false, 'progress_type': 'circular', 'position': 'left', 'size': 18, 'thickness': 3, 'radius': 0, 'color': '#00C800', 'background_color': '#3C3C3C', 'animation': true}` | Progress bar settings.    |
 
 ## Example Configuration
 
@@ -45,11 +43,6 @@ pomodoro:
       work: "\uf252"
       break: "\uf253"
       paused: "\uf254"
-    container_padding:
-      top: 0
-      left: 12
-      bottom: 0
-      right: 12
     menu:
       blur: true
       round_corners: true
@@ -68,17 +61,19 @@ pomodoro:
       on_left: "toggle_menu"
       on_middle: "reset_timer"
       on_right: "toggle_label"
-    label_shadow:
-      enabled: true
-      color: "black"
-      radius: 3
-      offset: [ 1, 1 ]
 ```
 
 ## Description of Options
 
-- **label**: Format for displaying timer information. Available variables: `{remaining}`, `{elapsed}`, `{session}`, `{total_sessions}`, `{session_type}`.
-- **label_alt**: Alternative label format that can be toggled with right-click (or configured callback).
+- **label**: Format for displaying timer information. Available variables: `{remaining}`, `{elapsed}`, `{session}`, `{total_sessions}`, `{status}`, `{icon}`.
+  - `{remaining}` - Time left in the current phase (work or break), counting down. Example: `24:15`
+  - `{elapsed}` - Total accumulated **work** time across all completed sessions plus the current work session progress. Break time is excluded. Holds steady during breaks. Example: after 2 full 25-min sessions and 10 min into the 3rd -> `01:00:00`
+  - `{session}` - Current session number (1-based).
+  - `{total_sessions}` - Target number of sessions, or `∞` if unlimited (`session_target: 0`).
+  - `{status}` - Current timer state: `Work`, `Break`, or `Paused`.
+  - `{icon}` - Icon for the current state, as configured in the `icons` option.
+- **label_alt**: Alternative label format that can be toggled with right-click (or configured callback). Supports the same variables as `label`.
+- **class_name**: Additional CSS class name for the widget. This allows for custom styling.
 - **work_duration**: The duration of work sessions in minutes.
 - **break_duration**: The duration of regular breaks in minutes.
 - **long_break_duration**: The duration of long breaks in minutes.
@@ -93,8 +88,6 @@ pomodoro:
     - **work**: Icon for work sessions.
     - **break**: Icon for break sessions.
     - **paused**: Icon for paused timer.
-- **container_padding**: Set padding inside widget container for top, left, bottom and right sides.  
-- **animation**: Animation settings including type and duration.
 - **callbacks**: Configure what happens when clicking the widget.
 - **menu**: Configure the appearance and behavior of the timer menu including the circular progress indicator.
     - **blur:** Whether to enable blur effect.
@@ -109,8 +102,16 @@ pomodoro:
     - **circle_work_progress_color:** Color of the work progress in the circular indicator.
     - **circle_break_progress_color:** Color of the break progress in the circular indicator.
     - **circle_thickness:** Thickness of the circular progress indicator.
-- **container_shadow:** Container shadow options.
-- **label_shadow:** Label shadow options.
+- **progress_bar**: A dictionary containing settings for the progress bar. It includes:
+  - **enabled**: Whether the progress bar is enabled.
+  - **progress_type**: The type of progress bar. Options are `"circular"`, `"linear_horizontal"`, or `"linear_vertical"`.
+  - **position**: The position of the progress bar, either "left" or "right".
+  - **size**: The length of the progress bar (or diameter if circular). Minimum is 1, maximum is 200.
+  - **thickness**: The thickness of the progress bar. Minimum is 1, maximum is 100.
+  - **radius**: The border radius for the linear progress bar corners. Minimum is 0, maximum is 100.
+  - **color**: The color of the progress bar. Color can be a single color or a gradient. For example, `color: "#57948a"` or `color: ["#57948a", "#ff0000"]` for a gradient.
+  - **background_color**: The background color of the progress bar.
+  - **animation**: Whether to enable smooth change of the progress bar value.
 
 ## Available Callbacks
 
@@ -124,6 +125,7 @@ pomodoro:
 
 ```css
 .pomodoro-widget {} /*Style for widget.*/
+.pomodoro-widget.your_class {} /* If you are using class_name option */
 .pomodoro-widget .widget-container {} /*Style for widget container.*/
 .pomodoro-widget .label {} /*Style for label.*/
 .pomodoro-widget .icon {} /*Style for icon.*/
@@ -144,6 +146,9 @@ pomodoro:
 .pomodoro-menu .button.pause {} /*Style for pause button.*/
 .pomodoro-menu .button:hover {} /*Style for button hover effect.*/
 .pomodoro-menu .button:pressed {} /*Style for button pressed effect.*/
+
+/* Pomodoro progress bar styles if enabled */
+.pomodoro-widget .progress-container {} 
 ```
 
 ## Example CSS

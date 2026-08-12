@@ -4,16 +4,14 @@
 | Option            | Type    | Default                                                                 | Description                                                                 |
 |-------------------|---------|-------------------------------------------------------------------------|-----------------------------------------------------------------------------|
 | `label`           | string  | `"\udb80\uddd9"`                        | Icon or text label. |
-| `icons`           | dict  | `'{'start': "\uead3",'stop': "\uead7",'reload': "\uead2",}'`        | Button icons. |
+| `icons`           | dict  | `{'start': "\uead3", 'stop': "\uead7", 'reload': "\uead2"}`        | Button icons. |
 | `run_ahk`         | boolean | `false`                                                                  | Whether to run AutoHotKey.                                          |
 | `run_whkd`        | boolean | `false`                                                                  | Whether to run WHKD.                                                |
+| `run_masir`       | boolean | `false`                                                                  | Whether to run Masir.                                                |
+| `config_path`     | string  | `None`                                                                   | Path to the Komorebi configuration file. If not set, uses default location. |
 | `show_version`    | boolean | `false`                                                                  | Whether to show the komorebi version.                                          |
-| `komorebi_menu`   | dict | `{'blur': True, 'round_corners': True, 'round_corners_type': 'normal','border_color': 'System', 'alignment': 'right', 'direction': 'down', 'offset_top': 6, 'offset_left': 0}` | Settings for the Komorebi menu. |
+| `komorebi_menu`   | dict | `{'blur': true, 'round_corners': true, 'round_corners_type': 'normal','border_color': 'System', 'alignment': 'right', 'direction': 'down', 'offset_top': 6, 'offset_left': 0}` | Settings for the Komorebi menu. |
 | `callbacks`       | dict    | `{'on_left': 'toggle_menu', 'on_middle': 'do_nothing', 'on_right': 'do_nothing'}` | Callbacks for mouse events. |
-| `container_padding`  | dict | `{'top': 0, 'left': 0, 'bottom': 0, 'right': 0}`      | Explicitly set padding inside widget container. |
-| `animation`         | dict    | `{'enabled': True, 'type': 'fadeInOut', 'duration': 200}`               | Animation settings for the widget.                                          |
-| `container_shadow`   | dict   | `None`                  | Container shadow options.                       |
-| `label_shadow`         | dict   | `None`                  | Label shadow options.                 |
 
 ## Example Configuration
 
@@ -27,22 +25,18 @@
           stop: "\uead7"
           reload: "\uead2"
         run_ahk: false
-        run_whkd: true
+        run_whkd: false
+        run_masir: false
         show_version: true
         komorebi_menu:
-          blur: True
-          round_corners: True
+          blur: true
+          round_corners: true
           round_corners_type: 'normal'
           border_color: 'System'
           alignment: 'left'
           direction: 'down'
           offset_top: 6
           offset_left: 0
-        label_shadow:
-          enabled: true
-          color: "black"
-          radius: 3
-          offset: [ 1, 1 ]
 ```
 
 ## Description of Options
@@ -54,6 +48,8 @@
   - **reload:** Icon for the reload button.
 - **run_ahk:** Whether to run AutoHotKey.
 - **run_whkd:** Whether to run WHKD.
+- **run_masir:** Whether to run Masir.
+- **config_path:** Path to the Komorebi configuration file. If not set, uses the default location. (e.g., `C:/Users/username/.config/komorebi.json`).
 - **show_version:** Whether to show the komorebi version.
 - **komorebi_menu:** Settings for the Komorebi menu.
   - **blur:** Whether to enable blur effect.
@@ -65,13 +61,6 @@
   - **offset_top:** Top offset for the menu.
   - **offset_left:** Left offset for the menu.
 - **callbacks:** Callbacks for mouse events.
-- **container_padding:** Explicitly set padding inside widget container.
-- **animation:** Animation settings for the widget.
-  - **enabled:** Whether to enable animation.
-  - **type:** Type of animation (fadeInOut, slideIn, etc.).
-  - **duration:** Duration of the animation in milliseconds.
-- **container_shadow:** Container shadow options.
-- **label_shadow:** Label shadow options.
 
 ## Widget Style
 ```css

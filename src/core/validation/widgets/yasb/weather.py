@@ -1,202 +1,92 @@
-from typing import Any
+from typing import Literal
 
-DEFAULTS = {
-    "label": "0",
-    "label_alt": "0",
-    "update_interval": 3600,
-    "hide_decimal": False,
-    "location": "",
-    "api_key": "0",
-    "units": "metric",
-    "show_alerts": False,
-    "icons": {
-        "sunnyDay": "\ue30d",
-        "clearNight": "\ue32b",
-        "cloudyDay": "\ue312",
-        "cloudyNight": "\ue311",
-        "rainyDay": "\udb81\ude7e",
-        "rainyNight": "\udb81\ude7e",
-        "snowyIcyDay": "\udb81\udd98",
-        "snowyIcyNight": "\udb81\udd98",
-        "blizzardDay": "\uebaa",
-        "blizzardNight": "\uebaa",
-        "foggyDay": "\ue303",
-        "foggyNight": "\ue346",
-        "thunderstormDay": "\ue30f",
-        "thunderstormNight": "\ue338",
-        "default": "\uebaa",
-    },
-    "weather_card": {
-        "blur": True,
-        "round_corners": True,
-        "round_corners_type": "normal",
-        "border_color": "System",
-        "alignment": "right",
-        "direction": "down",
-        "distance": 6,  # deprecated
-        "offset_top": 6,
-        "offset_left": 0,
-        "icon_size": 64,
-    },
-    "animation": {"enabled": True, "type": "fadeInOut", "duration": 200},
-    "container_padding": {"top": 0, "left": 0, "bottom": 0, "right": 0},
-    "callbacks": {"on_left": "do_nothing", "on_middle": "do_nothing", "on_right": "do_nothing"},
-}
+from pydantic import Field
 
-VALIDATION_SCHEMA: dict[str, Any] = {
-    "label": {"type": "string", "default": DEFAULTS["label"]},
-    "label_alt": {"type": "string", "default": DEFAULTS["label_alt"]},
-    "update_interval": {"type": "integer", "default": DEFAULTS["update_interval"], "min": 60, "max": 36000000},
-    "hide_decimal": {"type": "boolean", "default": DEFAULTS["hide_decimal"]},
-    "location": {"type": "string", "default": DEFAULTS["location"]},
-    "api_key": {"type": "string", "default": DEFAULTS["api_key"]},
-    "units": {"type": "string", "default": DEFAULTS["units"], "allowed": ["metric", "imperial"]},
-    "show_alerts": {"type": "boolean", "default": DEFAULTS["show_alerts"]},
-    "icons": {
-        "type": "dict",
-        "required": False,
-        "schema": {
-            "sunnyDay": {"type": "string", "default": DEFAULTS["icons"]["sunnyDay"]},
-            "clearNight": {
-                "type": "string",
-                "default": DEFAULTS["icons"]["clearNight"],
-            },
-            "cloudyDay": {
-                "type": "string",
-                "default": DEFAULTS["icons"]["cloudyDay"],
-            },
-            "cloudyNight": {
-                "type": "string",
-                "default": DEFAULTS["icons"]["cloudyNight"],
-            },
-            "rainyDay": {
-                "type": "string",
-                "default": DEFAULTS["icons"]["rainyDay"],
-            },
-            "rainyNight": {
-                "type": "string",
-                "default": DEFAULTS["icons"]["rainyNight"],
-            },
-            "snowyIcyDay": {
-                "type": "string",
-                "default": DEFAULTS["icons"]["snowyIcyDay"],
-            },
-            "snowyIcyNight": {
-                "type": "string",
-                "default": DEFAULTS["icons"]["snowyIcyNight"],
-            },
-            "blizzardDay": {
-                "type": "string",
-                "default": DEFAULTS["icons"]["blizzardDay"],
-            },
-            "blizzardNight": {
-                "type": "string",
-                "default": DEFAULTS["icons"]["blizzardNight"],
-            },
-            "foggyDay": {
-                "type": "string",
-                "default": DEFAULTS["icons"]["foggyDay"],
-            },
-            "foggyNight": {
-                "type": "string",
-                "default": DEFAULTS["icons"]["foggyNight"],
-            },
-            "thunderstormDay": {
-                "type": "string",
-                "default": DEFAULTS["icons"]["thunderstormDay"],
-            },
-            "thunderstormNight": {
-                "type": "string",
-                "default": DEFAULTS["icons"]["thunderstormNight"],
-            },
-            "blizzard": {  # deprecated
-                "type": "string",
-                "default": DEFAULTS["icons"]["blizzardDay"],
-            },
-            "default": {
-                "type": "string",
-                "default": DEFAULTS["icons"]["default"],
-            },
-        },
-        "default": DEFAULTS["icons"],
-    },
-    "weather_card": {
-        "type": "dict",
-        "schema": {
-            "blur": {"type": "boolean", "default": DEFAULTS["weather_card"]["blur"]},
-            "round_corners": {"type": "boolean", "default": DEFAULTS["weather_card"]["round_corners"]},
-            "round_corners_type": {
-                "type": "string",
-                "default": DEFAULTS["weather_card"]["round_corners_type"],
-                "allowed": ["normal", "small"],
-            },
-            "border_color": {"type": "string", "default": DEFAULTS["weather_card"]["border_color"]},
-            "alignment": {"type": "string", "default": DEFAULTS["weather_card"]["alignment"]},
-            "direction": {"type": "string", "default": DEFAULTS["weather_card"]["direction"]},
-            "distance": {"type": "integer", "default": DEFAULTS["weather_card"]["distance"]},
-            "offset_top": {"type": "integer", "default": DEFAULTS["weather_card"]["offset_top"]},
-            "offset_left": {"type": "integer", "default": DEFAULTS["weather_card"]["offset_left"]},
-            "icon_size": {"type": "integer", "default": DEFAULTS["weather_card"]["icon_size"]},
-        },
-        "default": DEFAULTS["weather_card"],
-    },
-    "animation": {
-        "type": "dict",
-        "schema": {
-            "enabled": {"type": "boolean", "default": DEFAULTS["animation"]["enabled"]},
-            "type": {"type": "string", "default": DEFAULTS["animation"]["type"]},
-            "duration": {"type": "integer", "default": DEFAULTS["animation"]["duration"]},
-        },
-        "default": DEFAULTS["animation"],
-    },
-    "container_padding": {
-        "type": "dict",
-        "required": False,
-        "schema": {
-            "top": {"type": "integer", "default": DEFAULTS["container_padding"]["top"]},
-            "left": {"type": "integer", "default": DEFAULTS["container_padding"]["left"]},
-            "bottom": {"type": "integer", "default": DEFAULTS["container_padding"]["bottom"]},
-            "right": {"type": "integer", "default": DEFAULTS["container_padding"]["right"]},
-        },
-        "default": DEFAULTS["container_padding"],
-    },
-    "label_shadow": {
-        "type": "dict",
-        "required": False,
-        "schema": {
-            "enabled": {"type": "boolean", "default": False},
-            "color": {"type": "string", "default": "black"},
-            "offset": {"type": "list", "default": [1, 1]},
-            "radius": {"type": "integer", "default": 3},
-        },
-        "default": {"enabled": False, "color": "black", "offset": [1, 1], "radius": 3},
-    },
-    "container_shadow": {
-        "type": "dict",
-        "required": False,
-        "schema": {
-            "enabled": {"type": "boolean", "default": False},
-            "color": {"type": "string", "default": "black"},
-            "offset": {"type": "list", "default": [1, 1]},
-            "radius": {"type": "integer", "default": 3},
-        },
-        "default": {"enabled": False, "color": "black", "offset": [1, 1], "radius": 3},
-    },
-    "callbacks": {
-        "type": "dict",
-        "schema": {
-            "on_left": {
-                "type": "string",
-                "nullable": True,
-                "default": DEFAULTS["callbacks"]["on_left"],
-            },
-            "on_middle": {
-                "type": "string",
-                "nullable": True,
-                "default": DEFAULTS["callbacks"]["on_middle"],
-            },
-            "on_right": {"type": "string", "nullable": True, "default": DEFAULTS["callbacks"]["on_right"]},
-        },
-        "default": DEFAULTS["callbacks"],
-    },
-}
+from core.validation.widgets.base_model import (
+    CallbacksConfig,
+    CustomBaseModel,
+    KeybindingConfig,
+)
+
+
+class WeatherIconsConfig(CustomBaseModel):
+    sunnyDay: str = "\ue30d"
+    clearNight: str = "\ue32b"
+    cloudyDay: str = "\ue312"
+    cloudyNight: str = "\ue311"
+    rainyDay: str = "\udb81\ude7e"
+    rainyNight: str = "\udb81\ude7e"
+    snowyDay: str = "\udb81\udd98"
+    snowyNight: str = "\udb81\udd98"
+    blizzardDay: str = "\uebaa"
+    blizzardNight: str = "\uebaa"
+    foggyDay: str = "\ue303"
+    foggyNight: str = "\ue346"
+    thunderstormDay: str = "\ue30f"
+    thunderstormNight: str = "\ue338"
+    default: str = "\uebaa"
+
+
+class WeatherCardButtonsConfig(CustomBaseModel):
+    enabled: bool = False
+    default_view: Literal["temperature", "rain", "snow"] = "temperature"
+    snow_icon: str = "\udb81\udd98"
+    rain_icon: str = "\udb81\udd96"
+    temperature_icon: str = "\udb81\udd99"
+
+
+class WeatherCardGradientConfig(CustomBaseModel):
+    enabled: bool = False
+    top_color: str = "#8EAEE8"
+    bottom_color: str = "#2A3E68"
+
+
+class WeatherCardAnimationConfig(CustomBaseModel):
+    enabled: bool = False
+    snow_overrides_rain: bool = True
+    temp_line_animation_style: Literal["rain", "snow", "both", "none"] = "both"
+    rain_effect_intensity: float = Field(default=1.0, ge=0.01, le=10.0)
+    snow_effect_intensity: float = Field(default=1.0, ge=0.01, le=10.0)
+    scale_with_chance: bool = True
+    enable_debug: bool = False
+
+
+class WeatherCardConfig(CustomBaseModel):
+    blur: bool = True
+    round_corners: bool = True
+    round_corners_type: Literal["normal", "small"] = "normal"
+    border_color: str = "System"
+    alignment: str = "right"
+    direction: str = "down"
+    offset_top: int = 6
+    offset_left: int = 0
+    icon_size: int = 64
+    show_hourly_forecast: bool = False
+    time_format: Literal["12h", "24h"] = "24h"
+    hourly_point_spacing: int = 76
+    hourly_icon_size: int = Field(default=32, ge=8, le=64)
+    icon_smoothing: bool = True
+    temp_line_width: int = Field(default=2, ge=0, le=10)
+    current_line_color: str = "#8EAEE8"
+    current_line_width: int = Field(default=1, ge=0, le=10)
+    current_line_style: Literal["solid", "dash", "dot", "dashDot", "dashDotDot"] = "dot"
+    hourly_gradient: WeatherCardGradientConfig = WeatherCardGradientConfig()
+    hourly_forecast_buttons: WeatherCardButtonsConfig = WeatherCardButtonsConfig()
+    weather_animation: WeatherCardAnimationConfig = WeatherCardAnimationConfig()
+
+
+class WeatherWidgetConfig(CustomBaseModel):
+    label: str = "{icon}"
+    label_alt: str = "{temp}"
+    class_name: str = ""
+    update_interval: int = Field(default=3600, ge=60, le=36000000)
+    hide_decimal: bool = False
+    location: str = "0"
+    api_key: str = "0"
+    units: Literal["metric", "imperial"] = "metric"
+    show_alerts: bool = False
+    tooltip: bool = True
+    icons: WeatherIconsConfig = WeatherIconsConfig()
+    weather_card: WeatherCardConfig = WeatherCardConfig()
+    keybindings: list[KeybindingConfig] = []
+    callbacks: CallbacksConfig = CallbacksConfig()

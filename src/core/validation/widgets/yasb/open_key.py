@@ -1,40 +1,20 @@
-DEFAULTS = {
-    'label': 'IM: %l',
-    'update_interval': 50,
-    'callbacks': {
-        'on_left': 'toggle_im',
-        'on_middle': 'do_nothing',
-        'on_right': 'toggle_control_panel'
-    }
-}
+from pydantic import Field
 
-VALIDATION_SCHEMA = {
-    'label': {
-        'type': 'string',
-        'default': DEFAULTS['label']
-    },
-    'update_interval': {
-        'type': 'integer',
-        'default': 50,
-        'min': 0,
-        'max': 60000
-    },
-    'callbacks': {
-        'type': 'dict',
-        'schema': {
-            'on_left': {
-                'type': 'string',
-                'default': DEFAULTS['callbacks']['on_left'],
-            },
-            'on_middle': {
-                'type': 'string',
-                'default': DEFAULTS['callbacks']['on_middle'],
-            },
-            'on_right': {
-                'type': 'string',
-                'default': DEFAULTS['callbacks']['on_right'],
-            }
-        },
-        'default': DEFAULTS['callbacks']
-    }
-}
+from core.validation.widgets.base_model import (
+    CallbacksConfig,
+    CustomBaseModel,
+    KeybindingConfig,
+)
+
+
+class OpenKeyCallbacksConfig(CallbacksConfig):
+    on_left: str = "toggle_im"
+    on_right: str = "toggle_control_panel"
+
+
+class OpenKeyConfig(CustomBaseModel):
+    label: str = "IM: %l"
+    update_interval: int = Field(default=50, ge=0, le=60000)
+    class_name: str = ""
+    keybindings: list[KeybindingConfig] = []
+    callbacks: OpenKeyCallbacksConfig = OpenKeyCallbacksConfig()

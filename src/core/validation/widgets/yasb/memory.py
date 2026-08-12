@@ -1,89 +1,67 @@
-DEFAULTS = {
-    "label": "\uf4bc {virtual_mem_free}/{virtual_mem_total}",
-    "label_alt": "\uf4bc VIRT: {virtual_mem_percent}% SWAP: {swap_mem_percent}%",
-    "update_interval": 5000,
-    "animation": {"enabled": True, "type": "fadeInOut", "duration": 200},
-    "container_padding": {"top": 0, "left": 0, "bottom": 0, "right": 0},
-    "callbacks": {"on_left": "toggle_label", "on_middle": "do_nothing", "on_right": "do_nothing"},
-    "memory_thresholds": {
-        "low": 25,
-        "medium": 50,
-        "high": 90,
-    },
-}
+from typing import Literal
 
-VALIDATION_SCHEMA = {
-    "label": {"type": "string", "default": DEFAULTS["label"]},
-    "label_alt": {"type": "string", "default": DEFAULTS["label_alt"]},
-    "update_interval": {"type": "integer", "default": DEFAULTS["update_interval"], "min": 1000, "max": 60000},
-    "memory_thresholds": {
-        "type": "dict",
-        "required": False,
-        "schema": {
-            "low": {"type": "integer", "default": DEFAULTS["memory_thresholds"]["low"], "min": 0, "max": 100},
-            "medium": {"type": "integer", "default": DEFAULTS["memory_thresholds"]["medium"], "min": 0, "max": 100},
-            "high": {"type": "integer", "default": DEFAULTS["memory_thresholds"]["high"], "min": 0, "max": 100},
-        },
-        "default": DEFAULTS["memory_thresholds"],
-    },
-    "animation": {
-        "type": "dict",
-        "required": False,
-        "schema": {
-            "enabled": {"type": "boolean", "default": DEFAULTS["animation"]["enabled"]},
-            "type": {"type": "string", "default": DEFAULTS["animation"]["type"]},
-            "duration": {"type": "integer", "default": DEFAULTS["animation"]["duration"], "min": 0},
-        },
-        "default": DEFAULTS["animation"],
-    },
-    "container_padding": {
-        "type": "dict",
-        "required": False,
-        "schema": {
-            "top": {"type": "integer", "default": DEFAULTS["container_padding"]["top"]},
-            "left": {"type": "integer", "default": DEFAULTS["container_padding"]["left"]},
-            "bottom": {"type": "integer", "default": DEFAULTS["container_padding"]["bottom"]},
-            "right": {"type": "integer", "default": DEFAULTS["container_padding"]["right"]},
-        },
-        "default": DEFAULTS["container_padding"],
-    },
-    "label_shadow": {
-        "type": "dict",
-        "required": False,
-        "schema": {
-            "enabled": {"type": "boolean", "default": False},
-            "color": {"type": "string", "default": "black"},
-            "offset": {"type": "list", "default": [1, 1]},
-            "radius": {"type": "integer", "default": 3},
-        },
-        "default": {"enabled": False, "color": "black", "offset": [1, 1], "radius": 3},
-    },
-    "container_shadow": {
-        "type": "dict",
-        "required": False,
-        "schema": {
-            "enabled": {"type": "boolean", "default": False},
-            "color": {"type": "string", "default": "black"},
-            "offset": {"type": "list", "default": [1, 1]},
-            "radius": {"type": "integer", "default": 3},
-        },
-        "default": {"enabled": False, "color": "black", "offset": [1, 1], "radius": 3},
-    },
-    "callbacks": {
-        "type": "dict",
-        "schema": {
-            "on_left": {
-                "type": "string",
-                "nullable": True,
-                "default": DEFAULTS["callbacks"]["on_left"],
-            },
-            "on_middle": {
-                "type": "string",
-                "nullable": True,
-                "default": DEFAULTS["callbacks"]["on_middle"],
-            },
-            "on_right": {"type": "string", "nullable": True, "default": DEFAULTS["callbacks"]["on_right"]},
-        },
-        "default": DEFAULTS["callbacks"],
-    },
-}
+from pydantic import Field
+
+from core.validation.widgets.base_model import (
+    CallbacksConfig,
+    CustomBaseModel,
+    KeybindingConfig,
+)
+
+
+class MemoryThresholdsConfig(CustomBaseModel):
+    low: int = Field(default=25, ge=0, le=100)
+    medium: int = Field(default=50, ge=0, le=100)
+    high: int = Field(default=90, ge=0, le=100)
+
+
+class ProgressBarConfig(CustomBaseModel):
+    enabled: bool = False
+    progress_type: Literal["circular", "linear_horizontal", "linear_vertical"] = "circular"
+    size: int = Field(default=18, ge=1, le=200)
+    thickness: int = Field(default=3, ge=1, le=100)
+    radius: int = Field(default=0, ge=0, le=100)
+    color: str | list[str] = "#00C800"
+    background_color: str = "#3C3C3C"
+    position: Literal["left", "right"] = "left"
+    animation: bool = True
+
+
+class CallbacksMemoryConfig(CallbacksConfig):
+    on_left: str = "toggle_label"
+    on_right: str = "do_nothing"
+
+
+class MemoryMenuConfig(CustomBaseModel):
+    enabled: bool = False
+    blur: bool = True
+    round_corners: bool = True
+    round_corners_type: str = "normal"
+    border_color: str = "System"
+    alignment: Literal["left", "center", "right"] = "right"
+    direction: Literal["up", "down"] = "down"
+    offset_top: int = 6
+    offset_left: int = 0
+    graph_history_size: int = Field(default=60, ge=10, le=180)
+    show_graph: bool = True
+    show_graph_grid: bool = False
+    pin_icon: str = "\ue718"
+    unpin_icon: str = "\ue77a"
+
+
+class MemoryConfig(CustomBaseModel):
+    label: str = "\uf4bc {virtual_mem_free}/{virtual_mem_total}"
+    label_alt: str = "\uf4bc VIRT: {virtual_mem_percent}% SWAP: {swap_mem_percent}%"
+    class_name: str = ""
+    update_interval: int = Field(default=5000, ge=1000, le=60000)
+    histogram_icons: list[str] = Field(
+        default=["\u2581", "\u2581", "\u2582", "\u2583", "\u2584", "\u2585", "\u2586", "\u2587", "\u2588"],
+        min_length=9,
+        max_length=9,
+    )
+    hide_decimal: bool = False
+    memory_thresholds: MemoryThresholdsConfig = MemoryThresholdsConfig()
+    progress_bar: ProgressBarConfig = ProgressBarConfig()
+    menu: MemoryMenuConfig = MemoryMenuConfig()
+    keybindings: list[KeybindingConfig] = []
+    callbacks: CallbacksMemoryConfig = CallbacksMemoryConfig()

@@ -1,17 +1,18 @@
 # Custom Widget Configuration
 
+A blank canvas for whatever data you want to put on your bar. You give it a command or script to run, and it displays the output - perfect for showing your IP address, GPU temperature, stock prices, or anything else you can fetch from a terminal command. Works with plain text or JSON.
+
 | Option          | Type    | Default                                                                 | Description                                                                 |
 |-----------------|---------|-------------------------------------------------------------------------|-----------------------------------------------------------------------------|
 | `label`         | string  | `"{data}"`                                | The format string for data |
 | `label_alt`     | string  | `"{data}"`    | Example of label alt. |
 | `label_max_length`          | int     | `None`                                                                     | The maximum length of the label. |
+| `label_placeholder` | string  | `"Loading..."`                                                          | Placeholder text when data is not available. |
+| `tooltip`       | boolean | `false`                                                                | Whether to show the tooltip on hover. |
+| `tooltip_label` | string  | `None`                                                                 | Custom format string for the tooltip. If not specified, shows raw data. |
 | `class_name`    | string  | `"custom-widget"`                                                      | The CSS class name for the widget. |
-| `exec_options`  | dict    | `{'run_cmd': None, 'run_interval': 120000, 'return_format': 'json', 'hide_empty: False', use_shell: True, encoding: None}` | Execution options for custom widget. |
+| `exec_options`  | dict    | `{'run_cmd': None, 'run_once': false, 'run_interval': 120000, 'return_format': 'json', 'hide_empty': false, 'use_shell': true, 'encoding': None}` | Execution options for custom widget. |
 | `callbacks`     | dict    | `{'on_left': 'toggle_label', 'on_middle': 'do_nothing', 'on_right': 'do_nothing'}` | Callbacks for mouse events. |
-| `animation`         | dict    | `{'enabled': True, 'type': 'fadeInOut', 'duration': 200}`               | Animation settings for the widget.                                          |
-| `container_padding`  | dict | `{'top': 0, 'left': 0, 'bottom': 0, 'right': 0}`      | Explicitly set padding inside widget container. |
-| `container_shadow`   | dict   | `None`                  | Container shadow options.                       |
-| `label_shadow`         | dict   | `None`                  | Label shadow options.                 |
 
 ## Example Configuration to get IP Address
 
@@ -22,6 +23,8 @@ ip_info:
     label: "<span>\udb81\udd9f</span> {data[ip]}"
     label_alt: "<span>\uf450</span> {data[city]} {data[region]}, {data[country]}"
     class_name: "ip-info-widget"
+    tooltip: true
+    tooltip_label: "IP: {data[ip]}\nCity: {data[city]}\nRegion: {data[region]}\nCountry: {data[country]}"
     exec_options:
       run_cmd: "curl.exe https://ipinfo.io"
       run_interval: 120000  # every 5 minutes
@@ -31,11 +34,6 @@ ip_info:
       on_left: "toggle_label"
       on_middle: "exec cmd /c ncpa.cpl" # open network settings
       on_right: "exec cmd /c start https://ipinfo.io/{data[ip]} " # open ipinfo in browser
-    label_shadow:
-      enabled: true
-      color: "black"
-      radius: 3
-      offset: [ 1, 1 ]
 ```
 
 ## Example Configuration to get Nvidia Temp.
@@ -61,7 +59,6 @@ nvidia_temp:
   type: "yasb.custom.CustomWidget"
   options:
     label: "London {data[current][temperature_2m]}{data[current_units][temperature_2m]}"
-    label: "London {data[current][temperature_2m]}{data[current_units][temperature_2m]}"
     class_name: "custom-widget"
     exec_options:
       run_cmd: "curl.exe http://api.open-meteo.com/v1/forecast?latitude=51.5074&longitude=-0.1278&current=temperature_2m&timezone=auto"
@@ -75,14 +72,20 @@ nvidia_temp:
 
 - **label**: The format string.
 - **label_alt**: The alternative format string.
+- **label_placeholder**: Placeholder text when data is not available. Default is `"Loading..."`.
 - **label_max_length**: The maximum length of the label. Minimum value is 1. Default is `None`.
+- **tooltip**: Whether to show the tooltip on hover. Default is `false`.
+- **tooltip_label**: Custom format string for the tooltip. Use `{data}` to reference the command output data. If not specified, shows the raw data representation (JSON for dict, string for other types).
 - **class_name**: The CSS class name for the widget.
-- **exec_options**: A dictionary specifying the execution options. The keys are `run_cmd` command to run, `run_interval` (in milliseconds), `return_format` can be `json` or `string`, `hide_empty` (boolean) hide widget if output is empty, `use_shell` use shell to run command, `encoding` encoding for the command output, can be utf-8, cp1252, etc.
+- **exec_options**: A dictionary specifying the execution options. The keys are:
+  - **run_cmd**: The command or executable path to run. Default is `None`.
+  - **run_once**: (boolean) If set to `true`, the command runs only once on startup and the repeat interval timer is disabled. Default is `false`.
+  - **run_interval**: The repeat execution interval in milliseconds. Default is `120000` (2 minutes).
+  - **return_format**: The format expected from the command output, either `"json"` or `"string"`. Default is `"json"`.
+  - **hide_empty**: (boolean) If true, the widget hides itself when the output is empty or parsing fails. Default is `false`.
+  - **use_shell**: (boolean) Whether to run the command inside a system shell. Default is `true`.
+  - **encoding**: (string) Custom character encoding to decode the output (e.g., `utf-8`, `cp1252`). Default is `None`.
 - **callbacks**: A dictionary specifying the callbacks for mouse events. The keys are `on_left`, `on_middle`, and `on_right`, and the values are the names of the callback functions.
-- **animation:** A dictionary specifying the animation settings for the widget. It contains three keys: `enabled`, `type`, and `duration`. The `type` can be `fadeInOut` and the `duration` is the animation duration in milliseconds.
-- **container_padding**: Explicitly set padding inside widget container. Use this option to set padding inside the widget container. You can set padding for top, left, bottom and right sides of the widget container.
-- **container_shadow:** Container shadow options.
-- **label_shadow:** Label shadow options.
 
 ## Example Style
 ```css

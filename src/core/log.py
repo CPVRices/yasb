@@ -1,10 +1,19 @@
+import faulthandler
 import logging
+import sys
+import warnings
 from dataclasses import dataclass
 from logging.handlers import RotatingFileHandler
 from os.path import join
 
+from PyQt6.QtCore import QtMsgType, qFormatLogMessage, qInstallMessageHandler
+
 from core.config import get_config_dir
 from settings import APP_NAME, BUILD_VERSION, DEFAULT_LOG_FILENAME
+
+# Silence qasync debug logs
+qasync_logger = logging.getLogger("qasync")
+qasync_logger.setLevel(logging.WARNING)
 
 LOG_PATH = join(get_config_dir(), DEFAULT_LOG_FILENAME)
 
@@ -46,14 +55,56 @@ class ColoredFormatter(logging.Formatter):
         return super().format(record)
 
 
+def _suppress_third_party_warnings():
+    """Suppress noisy warnings and logs from third-party libraries."""
+    logging.getLogger("asyncio").setLevel(logging.WARNING)
+    logging.getLogger("comtypes").setLevel(logging.ERROR)
+    logging.getLogger("pyvda").setLevel(logging.WARNING)
+    warnings.filterwarnings("ignore", category=UserWarning, module="pycaw")
+
+
+# Suppress Qt internal messages (e.g. QObject::disconnect wildcard warnings from QWebSocket)
+_QT_SUPPRESSED_PREFIXES = ("QObject::disconnect", "Could not create pixmap from")
+_original_qt_handler = None
+
+
+def _qt_message_handler(msg_type: QtMsgType, context, message: str):
+    if message and message.startswith(_QT_SUPPRESSED_PREFIXES):
+        return
+    if _original_qt_handler:
+        _original_qt_handler(msg_type, context, message)
+    else:
+        # qInstallMessageHandler returns None when replacing the default C++ handler.
+        formatted = qFormatLogMessage(msg_type, context, message)
+        if sys.stderr is not None:
+            sys.stderr.write(formatted + "\n")
+
+
+def _install_qt_message_filter():
+    global _original_qt_handler
+    _original_qt_handler = qInstallMessageHandler(_qt_message_handler)
+
+
 def init_logger():
+    _suppress_third_party_warnings()
+    _install_qt_message_filter()
     # File handler should be without colors
     file_handler = RotatingFileHandler(
-        join(get_config_dir(), DEFAULT_LOG_FILENAME), maxBytes=1024 * 1024, backupCount=5
+        join(get_config_dir(), DEFAULT_LOG_FILENAME), maxBytes=1024 * 1024, backupCount=5, encoding="utf-8"
     )
+    file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(logging.Formatter(LOG_FORMAT, datefmt=LOG_DATETIME))
     # Configure logging with colors
     console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
     console_handler.setFormatter(ColoredFormatter(CONSOLE_FORMAT, datefmt=CONSOLE_DATETIME))
-    logging.basicConfig(level=logging.DEBUG, handlers=[file_handler, console_handler])
-    logging.info(f"{APP_NAME} v{BUILD_VERSION}")
+    logging.basicConfig(level=logging.DEBUG, handlers=[file_handler, console_handler], encoding="utf-8")
+    # c_stack is dead on Windows
+    faulthandler.enable(file=file_handler.stream, all_threads=True, c_stack=False)
+    logging.info("%s v%s", APP_NAME, BUILD_VERSION)
+
+
+def enable_debug_logging():
+    """Lower all root-logger handlers to DEBUG level."""
+    for handler in logging.root.handlers:
+        handler.setLevel(logging.DEBUG)

@@ -1,76 +1,37 @@
 import logging
 import re
-from typing import Any, cast
 
 from PyQt6.QtCore import pyqtSlot
-from PyQt6.QtWidgets import QHBoxLayout, QLabel, QStyle, QWidget
+from PyQt6.QtWidgets import QLabel
 
-from core.utils.glazewm.client import BindingMode, GlazewmClient
-from core.utils.utilities import add_shadow, build_widget_label
-from core.utils.widgets.animation_manager import AnimationManager
-from core.validation.widgets.glazewm.binding_mode import VALIDATION_SCHEMA
+from core.utils.utilities import refresh_widget_style
+from core.validation.widgets.glazewm.binding_mode import GlazewmBindingModeConfig
 from core.widgets.base import BaseWidget
-from settings import DEBUG
+from core.widgets.services.glazewm.client import BindingMode, GlazewmClient
 
 logger = logging.getLogger("glazewm_binding_mode")
 
-if DEBUG:
-    logger.setLevel(logging.DEBUG)
-else:
-    logger.setLevel(logging.CRITICAL)
-
 
 class GlazewmBindingModeWidget(BaseWidget):
-    validation_schema: dict[str, Any] = VALIDATION_SCHEMA
+    validation_schema = GlazewmBindingModeConfig
 
-    def __init__(
-        self,
-        label: str,
-        label_alt: str,
-        glazewm_server_uri: str,
-        hide_if_no_active: bool,
-        label_if_no_active: str,
-        default_icon: str,
-        icons: dict[str, str],
-        binding_modes_to_cycle_through: list[str],
-        container_padding: dict[str, int],
-        animation: dict[str, str],
-        callbacks: dict[str, str],
-        label_shadow: dict = None,
-        container_shadow: dict = None,
-    ):
+    def __init__(self, config: GlazewmBindingModeConfig):
         super().__init__(class_name="glazewm-binding-mode")
-        self._label_content = label
-        self._label_alt_content = label_alt
+        self._label_content = config.label
+        self._label_alt_content = config.label_alt
         self._show_alt_label = False
-        self._hide_if_no_active = hide_if_no_active
-        self._label_if_no_active = label_if_no_active
-        self._default_icon = default_icon
-        self._icons = icons
-        self._binding_modes_to_cycle_through = binding_modes_to_cycle_through
+        self._hide_if_no_active = config.hide_if_no_active
+        self._label_if_no_active = config.label_if_no_active
+        self._default_icon = config.default_icon
+        self._icons = config.icons
+        self._binding_modes_to_cycle_through = config.binding_modes_to_cycle_through
         self._current_binding_mode_index = 0
-        self._padding = container_padding
-        self._animation = animation
-        self._container_shadow = container_shadow
-        self._label_shadow = label_shadow
 
-        self._widget_container_layout: QHBoxLayout = QHBoxLayout()
-        self._widget_container_layout.setSpacing(0)
-        self._widget_container_layout.setContentsMargins(
-            self._padding["left"], self._padding["top"], self._padding["right"], self._padding["bottom"]
-        )
-
-        self._widget_container: QWidget = QWidget()
-        self._widget_container.setLayout(self._widget_container_layout)
-        self._widget_container.setProperty("class", "widget-container")
-        add_shadow(self._widget_container, self._container_shadow)
-
-        self.widget_layout.addWidget(self._widget_container)
-
-        build_widget_label(self, self._label_content, self._label_alt_content, self._label_shadow)
+        self._init_container()
+        self.build_widget_label(self._label_content, self._label_alt_content)
 
         self.glazewm_client = GlazewmClient(
-            glazewm_server_uri,
+            config.glazewm_server_uri,
             [
                 "sub -e binding_modes_changed",
                 "query binding-modes",
@@ -84,15 +45,13 @@ class GlazewmBindingModeWidget(BaseWidget):
         self.register_callback("disable_binding_mode", self._disable_binding_mode)
         self.register_callback("next_binding_mode", lambda: self._cycle_through_binding_modes(1))
         self.register_callback("prev_binding_mode", lambda: self._cycle_through_binding_modes(-1))
-        self.callback_left = callbacks["on_left"]
-        self.callback_right = callbacks["on_right"]
-        self.callback_middle = callbacks["on_middle"]
+        self.callback_left = config.callbacks.on_left
+        self.callback_right = config.callbacks.on_right
+        self.callback_middle = config.callbacks.on_middle
 
         self.hide()
 
     def _toggle_label(self):
-        if self._animation["enabled"]:
-            AnimationManager.animate(self, self._animation["type"], self._animation["duration"])
         self._show_alt_label = not self._show_alt_label
         for widget in self._widgets:
             widget.setVisible(not self._show_alt_label)
@@ -101,9 +60,7 @@ class GlazewmBindingModeWidget(BaseWidget):
         self._update_label()
 
     def _reload_css(self, label: QLabel):
-        style = cast(QStyle, label.style())
-        style.unpolish(label)
-        style.polish(label)
+        refresh_widget_style(label)
         label.update()
 
     def _update_label(self):

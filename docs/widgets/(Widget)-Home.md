@@ -1,24 +1,23 @@
 # Home Menu Widget Configuration
 
+A start button for your status bar that opens a customizable launcher menu. You can add quick shortcuts to your favorite apps, folders, websites, and standard power actions (like sleep or shutdown) in a clean, styled popup menu.
+
 | Option          | Type    | Default                                                                 | Description                                                                 |
 |-----------------|---------|-------------------------------------------------------------------------|-----------------------------------------------------------------------------|
 | `label`         | string  | `"\udb81\udf17"`                                | Icon or text for button. |
-| `menu_list`     | list    | `[]` | List of menu items. title and path |
+| `menu_list`     | list    | `[]` | List of menu items. Supports `path`, `uri`, or `command`. |
 | `system_menu`   | boolean | `true`                                                                 | Show system menu. |
 | `power_menu`    | boolean | `true`                                                                 | Show power menu. |
 | `blur`          | boolean | `true`                                                                 | Blur background. |
 | `round_corners` | boolean | `true`                                                                 | Round corners. |
-| `round_corners_type`        | boolean | `'normal'`                                                  | Round corners type. Possible values: `'normal'`, `'small'`. |
+| `round_corners_type`        | string | `'normal'`                                                  | Round corners type. Possible values: `'normal'`, `'small'`. |
 | `border_color`  | string  | `'System'`                                                          |  Border color. |
 | `alignment`     | string  | `"left"`                                                               | Alignment of the menu. Possible values: `"left"`, `"center"`, `"right"`. |
 | `direction`     | string  | `"down"`                                                           | Direction of the menu. Possible values: `"up"`, `"down"`. |
 | `offset_top`      | int     | `6`                                                                     | Distance from the top or bottom edge of the bar. |
 | `offset_left`     | int     | `0`                                                                     | Distance from the left or right edge of the bar. |
 | `menu_labels`   | dict | `{'shutdown': 'Shutdown', 'restart': 'Restart', 'logout': 'Logout', 'lock': 'Lock', 'sleep': 'Sleep', 'system': 'System Settings', 'about': 'About This PC', 'task_manager': 'Task Manager'}` | Custom label names for system and power items. | 
-| `container_padding`  | dict | `{'top': 0, 'left': 0, 'bottom': 0, 'right': 0}`      | Explicitly set padding inside widget container. |
-| `animation`         | dict    | `{'enabled': True, 'type': 'fadeInOut', 'duration': 200}`               | Animation settings for the widget.                                          |
-| `container_shadow`   | dict   | `None`                  | Container shadow options.                       |
-| `label_shadow`         | dict   | `None`                  | Label shadow options.                 |
+| `callbacks`     | dict | `{'on_left': 'toggle_menu', 'on_middle': 'do_nothing', 'on_right': 'do_nothing'}` | Mouse event callbacks. |
 
 ## Example Configuration
 
@@ -32,6 +31,11 @@ home:
     - { title: "Download", path: "D:\\Downloads" }
     - { title: "Documents", path: "C:\\Users\\amn\\Documents" }
     - { title: "Pictures", path: "C:\\Users\\amn\\Pictures" }
+    - { title: "Sound Settings", command: "cmd.exe /c start ms-settings:sound" }
+    - { title: "Windows Settings", uri: "ms-settings:" }
+    - { separator: true }
+    - { title: "PowerShell", command: "powershell.exe", show_window: true }
+    - { title: "Winget Update", command: "powershell.exe", args: ["-NoProfile", "-NoExit", "-Command", "winget upgrade"], show_window: true }
     system_menu: true
     power_menu: true
     blur: true
@@ -40,34 +44,29 @@ home:
     border_color: "System"
     offset_top: 6
     offset_left: 0
-    container_padding: 
-      top: 0
-      left: 0
-      bottom: 0
-      right: 0
     alignment: "left"
     direction: "down"
     menu_labels:
       shutdown: "Shutdown"
       restart: "Restart"
+      hibernate: "Hibernate"
       logout: "Logout"
       lock: "Lock"
       sleep: "Sleep"
       system: "System Settings"
       about: "About This PC"
       task_manager: "Task Manager"
-    label_shadow:
-      enabled: true
-      color: "black"
-      radius: 3
-      offset: [ 1, 1 ]
 ```
  
 
 ## Description of Options
 
 - **label**: Icon or text for button.
-- **menu_list**: List of menu items. title and path. Use this list only for directories, do not use it for applications or files.
+- **menu_list**: List of menu items. Each item needs a `title` and one of:
+        - `path`: Open a file or folder.
+        - `uri`: Open a URI like `ms-settings:sound` or `https://www.example.com`.
+    - `command`: Run a command. Optional `args` (list of strings), `shell` (boolean), and `show_window` (boolean).
+    You can also add a separator with `{ separator: true }`.
 - **system_menu**: Show system menu. Enabling this option will show system menu items like settings, task manager and About this PC.
 - **power_menu**: Show power menu. Enabling this option will show power menu items like shutdown, restart, sleep, lock and sign out.
 - **blur**: Blur background. Enabling this option will blur the background and add default OS radius and border to the widget.
@@ -79,10 +78,8 @@ home:
 - **offset_top**: Distance from the top or bottom edge of the bar.
 - **offset_left**: Distance from the left or right edge of the bar.
 - **menu_labels**: Custom label names for system and power items. Use this option to change the default labels for system and power menu items.
-- **container_padding**: Explicitly set padding inside widget container. Use this option to set padding inside the widget container. You can set padding for top, left, bottom and right sides of the widget container.
-- **animation:** A dictionary specifying the animation settings for the widget. It contains three keys: `enabled`, `type`, and `duration`. The `type` can be `fadeInOut` and the `duration` is the animation duration in milliseconds.
-- **container_shadow:** Container shadow options.
-- **label_shadow:** Label shadow options.
+- **callbacks**: A dictionary of mouse event callbacks. The keys are `on_left`, `on_middle`, and `on_right`. The values are the callback names.
+  - Available callbacks: `"toggle_menu"`, `"do_nothing"`, or generic program launches using `"exec <command>"`.
 
 ## Example Style
 ```css

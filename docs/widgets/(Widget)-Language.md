@@ -1,14 +1,14 @@
 # Language Widget Options
+
+Shows your current keyboard language or layout - like EN, DE, or RU - and lets you switch between installed languages from a popup menu. Updates in real time when you change languages with a keyboard shortcut.
+
 | Option           | Type     | Default                        | Description                                                                 |
 |------------------|----------|--------------------------------|-----------------------------------------------------------------------------|
 | `label`          | string   | `"{lang[language_code]}-{lang[country_code]}"`              | The format string for the label. |
 | `label_alt`      | string   | `"{lang[full_name]}"`               | The alternative format string for the label. Useful for displaying the full language name. |
 | `update_interval`| integer  | `5`                            | The interval in seconds to update the language information. Must be between 1 and 3600. |
+| `class_name`      | string   | `""`                           | Additional CSS class name for the widget.                                    |
 | `callbacks`      | dict     | `{ 'on_left': 'toggle_label', 'on_middle': 'do_nothing', 'on_right': 'do_nothing' }` | The dictionary of callback functions for different mouse actions. |
-| `animation`         | dict    | `{'enabled': True, 'type': 'fadeInOut', 'duration': 200}`               | Animation settings for the widget.                                          |
-| `container_padding`  | dict | `{'top': 0, 'left': 0, 'bottom': 0, 'right': 0}`      | Explicitly set padding inside widget container.                            |
-| `container_shadow`   | dict   | `None`                  | Container shadow options.                       |
-| `label_shadow`         | dict   | `None`                  | Label shadow options.                 |
 | `language_menu` | dict     | [See below](#language-menu-configuration) | Options for the language menu. |
 
 ## Callbacks
@@ -60,31 +60,28 @@ language:
       offset_left: 0
       show_layout_icon: true
       layout_icon: "\uf11c"
-    label_shadow:
-      enabled: true
-      color: "black"
-      radius: 3
-      offset: [ 1, 1 ]
 ```
 
 ## Description of Options
 - **label:** The format string for the label. You can use placeholders like `{lang[language_code]}`, `{lang[country_code]}`, `{lang[full_name]}`, `{lang[native_country_name]}`, `{lang[native_lang_name]}`, `{lang[layout_name]}`, `{lang[full_layout_name]}`, `{lang[layout_country_name]}`, `{lang[iso_language_code]}`.
 - **label_alt:** The alternative format string for the label. Useful for displaying the full language name.
 - **update_interval:** The interval in seconds to update the language information. Must be between 1 and 3600.
+- **class_name:** Additional CSS class name for the widget. This allows for custom styling.
 - **callbacks:** A dictionary specifying the callbacks for mouse events. The keys are `on_left`, `on_middle`, and `on_right`, and the values are the names of the callback functions.
-- **animation:** A dictionary specifying the animation settings for the widget. It contains three keys: `enabled`, `type`, and `duration`. The `type` can be `fadeInOut` and the `duration` is the animation duration in milliseconds.
-- **container_padding**: Explicitly set padding inside widget container. Use this option to set padding inside the widget container. You can set padding for top, left, bottom and right sides of the widget container.
-- **container_shadow:** Container shadow options.
-- **label_shadow:** Label shadow options.
 - **language_menu:** A dictionary containing options for the language selection menu. It includes options like `blur`, `round_corners`, `round_corners_type`, `border_color`, `alignment`, `direction`, `offset_top`, `offset_left`, `layout_icon`, and `show_layout_icon`.
 
 ## Example Style
 ```css
 .language-widget {}
+.language-widget.your_class {} /* If you are using class_name option */
 .language-widget .widget-container {}
+.language-widget .widget-container.caps-lock-on {} /* If Caps Lock is on */
 .language-widget .label {}
 .language-widget .label.alt {}
 .language-widget .icon {}
+.language-widget .widget-container.caps-lock-on .label {} /* If Caps Lock is on */
+.language-widget .widget-container.caps-lock-on .icon {} /* If Caps Lock is on */
+
 /* Language Menu */
 .language-menu {}
 .language-menu .header {}
@@ -166,4 +163,4 @@ language:
 ```
 
 ## Preview of the Widget
-![GitHub YASB Widget](assets/6b646834-fc98abfe-b297-ce61-4bce3683223c.png)
+![Language YASB Widget](assets/6b646834-fc98abfe-b297-ce61-4bce3683223c.png)

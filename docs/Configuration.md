@@ -1,12 +1,8 @@
 # Config file
 
 The configuration uses the YAML file format and is named `config` or `config.yaml`.
-
 Valid directories for this file are `C:/Users/{username}/.config/yasb/` or ENV variable `YASB_CONFIG_HOME` if set.
-A good starting point is the [default config](https://github.com/amnweb/yasb/blob/main/src/config.yaml).
-
 All valid options for the widgets are listed on the widgets page.
-
 
 # Environment Variables Support
 
@@ -29,12 +25,70 @@ QT_SCREEN_SCALE_FACTORS="1.25;1"
 QT_SCALE_FACTOR_ROUNDING_POLICY="PassThrough"
 ```
 
+## YASB Font Engine
+YASB supports different font engines to improve text rendering quality.
+You can set the font engine by defining the `YASB_FONT_ENGINE` environment variable in your `.env` file or in OS environment variables.
+Valid options are:
+- `native`: Uses the DirectWrite font rendering engine.
+- `gdi`: Uses the GDI font rendering engine.
+- `freetype`: Uses the FreeType font rendering engine.
+
+> **Note:**
+> The default font engine is GDI, changing the font engine may cause different font rendering quality. You can experiment with different engines to see which one works best for you. Font names can be different between engines, example: gdi `"font-family: 'JetBrainsMono NFP';"` may need to be changed to `"font-family: 'JetBrainsMono Nerd Font Propo'"` for DirectWrite.
+
+
 ## Status Bar Root Configuration
 | Option            | Type    | Default       | Description |
 |-------------------|---------|---------------|-------------|
 | `watch_stylesheet`         | boolean | `true`        | Reload bar when style is changed. |
 | `watch_config`         | boolean    | `true`        | Reload bar when config is changed. |
 | `debug`      | boolean  | `false`   | Enable debug mode to see more logs |
+| `update_check`      | boolean  | `true`   | Enable automatic update check. This works only if the application is installed. |
+| `show_systray`      | boolean  | `true`   | Show or hide the YASB system tray icon. |
+| `system_colors`     | boolean  | `false`  | Enable automatic generation of CSS variables from Windows theme colors. |
+| `tooltip`           | object   | [See below](#tooltip-configuration) | Global tooltip configuration. |
+| `komorebi`      | object  | [See below](#komorebi-settings-for-tray-menu)   | Komorebi configuration for tray menu. |
+| `glazewm`      | object  | [See below](#glazewm-settings-for-tray-menu)   | Glazewm configuration for tray menu. |
+
+## Logging and Debugging
+YASB provides detailed logging to help troubleshoot widget or configuration issues.
+
+- **Enable Debug Mode:** Set `debug: true` in your root configuration to output verbose logs.
+- **View Logs via CLI:** Run `yasbc log` in your terminal to stream real-time logs.
+- **View Log File:** Check the `yasb.log` file located in your config directory (default: `C:/Users/{username}/.config/yasb/`).
+
+## Tooltip Configuration
+Global configuration for tooltips and their blur effects.
+
+| Option            | Type    | Default       | Description |
+|-------------------|---------|---------------|-------------|
+| `offset`          | integer | `5`           | The distance in pixels between the tooltip and the hovered item or bar. |
+| `blur_effect`     | object  | [See below](#tooltip-blur-effect-configuration) | Global tooltip blur configuration. |
+
+### Tooltip Blur Effect Configuration
+
+| Option            | Type    | Default       | Description |
+|-------------------|---------|---------------|-------------|
+| `enabled`         | boolean | `false`       | Whether the blur effect is enabled for tooltips. |
+| `dark_mode`       | boolean | `false`       | Whether to enable dark mode for the tooltip blur. |
+| `round_corners`   | boolean | `false`       | Whether to enable rounded corners for the tooltips. Note: This is only effective on Windows 11. |
+| `round_corners_type` | string | `'normal'` | The type of rounded corners, can be `normal` or `small`. Note: This is only effective on Windows 11. |
+| `border_color`    | string  | `'None'`      | The border color for the tooltip, can be `None`, `"system"`, or a hex color (e.g., `"#ff0000"`). Note: This is only effective on Windows 11. |
+
+> **Note:**
+> Rounded corners, border color and rounded corners type are only effective on Windows 11.
+
+**Example Configuration:**
+```yaml
+tooltip:
+  offset: 5
+  blur_effect:
+    enabled: true
+    dark_mode: false
+    round_corners: true
+    round_corners_type: "small"
+    border_color: "None"
+```
 
 
 ## Komorebi settings for tray menu
@@ -45,23 +99,52 @@ QT_SCALE_FACTOR_ROUNDING_POLICY="PassThrough"
 | `reload_command`      | string  | `"komorebic reload-configuration"` | Reload komorebi configuration.|
 
 
+## Glazewm settings for tray menu
+| Option            | Type    | Default       | Description |
+|-------------------|---------|---------------|-------------|
+| `start_command`         | string | `"glazewm.exe start"` | Start
+| `stop_command`         | string    | `"glazewm.exe command wm-exit"` | Stop glazewm. |
+| `reload_command`      | string  | `"glazewm.exe command wm-exit && glazewm.exe start"` | Reload glazewm configuration.|
+
+
 ## Status Bar Configuration
 | Option            | Type    | Default       | Description |
 |-------------------|---------|---------------|-------------|
 | `enabled`         | boolean | `true`        | Whether the status bar is enabled. |
-| `screens`         | list    | `['*']`       | The screens on which the status bar should be displayed. |
+| `screens`         | list    | `['*']`       | The screens on which the status bar should be displayed. Use `['*']` for all unassigned screens, `['**']` for all screens (including assigned), or specify screen names like `['DELL P2419H (1)']`. |
 | `class_name`      | string  | `"yasb-bar"`  | The CSS class name for the status bar. |
-| `alignment`       | object  | `{position: "top", center: false}` | The alignment settings for the status bar. |
+| `context_menu`    | boolean | `true`        | Whether to enable the right-click context menu on the status bar. |
+| `alignment`       | object  | [See below](#bar-alignment) | The alignment settings for the status bar. |
 | `blur_effect`     | object  | [See below](#blur-effect-configuration) | The blur effect settings for the status bar. |
 | `window_flags`    | object  | [See below](#window-flags-configuration) | The window flags for the status bar. |
-| `dimensions`      | object  | `{width: "100%", height: 36}` | The dimensions of the status bar. |
+| `dimensions`      | object  | `{width: "100%", height: 36}` | The dimensions of the status bar. Width can be a number (pixels), percentage string (e.g., `"100%"`, `"50%"`), or `"auto"` to resize based on content. When using `"auto"`, the bar will automatically resize as widget content changes, with a maximum width of the available screen width minus padding. |
 | `padding`         | object  | `{top: 4, left: 0, bottom: 4, right: 0}` | The padding for the status bar. |
-| `animation`       | object  | `{enabled: true, duration: 500}` | The animation settings for the status bar. Duration is in milliseconds. |
+| `animation`       | object  | `{enabled: true, duration: 500}` | The animation settings for the status bar. Duration is in milliseconds. Animation is used to show/hide the bar smoothly. |
 | `widgets`         | list  | `left[], center[], right[]` | Active widgets and position. |
 | `layouts`         | object  | [See below](#layouts-configuration) | Configuration for widget layouts in each section (left, center, right). |
 
+> **note:**
+> Setting the width to `"auto"` is not recommended for widgets that constantly update data, such as CPU, memory, clock, etc. This can cause the bar to constantly resize, which may lead to flickering or performance issues.
+
 > **Note:**
 > `screens` can be specified as a list of monitor names. If you want the bar to appear on all screens, use `['*']`. To specify a single screen, use `['DELL P2419H (1)']` or a similar name based on your monitor setup. To show the bar only and always on the primary screen, use `['primary']`.
+
+
+### Bar Alignment
+| Option            | Type    | Default       | Description |
+|-------------------|---------|---------------|-------------|
+| `position`        | string  | `"top"`       | The position of the status bar, can be `"top"` or `"bottom"` |
+| `align`          | string |  `"center"` | The alignment of the status bar, can be `"left"`, `"center"`, or `"right"` |
+
+### Animation Configuration
+Customize how the status bar transitions when shown or hidden:
+
+| Option     | Type    | Default   | Description |
+|------------|---------|-----------|-------------|
+| `enabled`  | boolean | `true`    | Whether to animate the bar when showing or hiding it. |
+| `duration` | integer | `500`     | The animation duration in milliseconds. |
+| `type`     | string  | `"slide"` | The style of animation to play. Can be `"slide"` (slides from the screen edge) or `"fade"` (fades in/out). |
+
 
 ### Blur Effect Configuration
 | Option            | Type    | Default       | Description |
@@ -73,6 +156,8 @@ QT_SCALE_FACTOR_ROUNDING_POLICY="PassThrough"
 | `round_corners_type` | string | `'normal'` | The type of rounded corners, can be `normal` or `small`. Note: This is only effective on Windows 11. |
 | `border_color`    | string  | `'system'`   | The border color for the bar, can be `None`, `"system"`, or a hex color (e.g., `"#ff0000"`). Note: This is only effective on Windows 11. |
 
+> **Note:**
+> Rounded corners, border color and rounded corners type are only effective on Windows 11.
 
 ### Window Flags Configuration
 | Option            | Type    | Default       | Description |
@@ -80,6 +165,7 @@ QT_SCALE_FACTOR_ROUNDING_POLICY="PassThrough"
 | `always_on_top`   | boolean | `false`       | Whether the status bar should always stay on top of other windows. |
 | `windows_app_bar` | boolean | `true`        | Whether the status bar should behave like a Windows app bar. |
 | `hide_on_fullscreen` | boolean | `false`    | Whether the status bar should hide when a window is in fullscreen mode. |
+| `hide_on_maximized` | boolean | `false`    | Whether the status bar should auto-hide when any window is maximized on the bar's monitor. Only works when `windows_app_bar` is `false`. |
 | `auto_hide` | boolean | `false`    | Whether the status bar should auto-hide when not in use. |
 
 ### Layouts Configuration
@@ -106,23 +192,38 @@ layouts:
 
 # Multiple Bars Example
 > **Note:**
-> If you want to have different bars on each screen you will need to define on which screen the bar should be displayed, `screens` inside bar config is your monitor name. You can find your monitor name inside device manager or click on YASB tray icon and select Debug > Information to show all available screens.
+> If you want to have different bars on each screen you will need to define on which screen the bar should be displayed, `screens` inside bar config is your monitor name. You can find your monitor names using `yasbc monitor-information` or inside device manager.
+
+## Screen Assignment Options:
+- `screens: ['*']` - Show on all **unassigned** screens (screens not explicitly assigned to other bars)
+- `screens: ['**']` - Show on **all screens** (including screens assigned to other bars)
+- `screens: ['SCREEN_NAME']` - Show on specific screen(s)
 
 ```
 bars:
   status-bar:
-    screens: ['DELL P2419H (1)'] 
+    screens: ['DELL P2419H (1)']  # Show only on monitor 1
     widgets:
       left: ["clock"]
       center: ["cpu"]
       right: ["memory"]
 
   status-bar-2:
-    screens: ['DELL P2419H (2)'] 
+    screens: ['DELL P2419H (2)']  # Show only on monitor 2
     widgets:
       left: ["active_window"]
       center: ["media"]
       right: ["volume","power_menu"]
+
+  status-bar-3:
+    screens: ['*']  # Show on all unassigned screens
+    widgets:
+      center: ["weather"]
+
+  global-taskbar:
+    screens: ['**']  # Show on ALL screens (including monitors 1 and 2)
+    widgets:
+      left: ["taskbar"]
 
 widgets:
     ...

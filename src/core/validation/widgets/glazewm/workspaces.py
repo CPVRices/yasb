@@ -1,79 +1,28 @@
-DEFAULTS = {
-    "offline_label": "GlazeWM Offline",
-    "populated_label": None,
-    "empty_label": None,
-    "active_populated_label": None,
-    "active_empty_label": None,
-    "hide_empty_workspaces": True,
-    "hide_if_offline": False,
-    "glazewm_server_uri": "ws://localhost:6123",
-    "default_shadow": {
-        "enabled": False,
-        "color": "black",
-        "offset": [1, 1],
-        "radius": 3,
-    },
-    "container_padding": {"top": 0, "left": 0, "bottom": 0, "right": 0},
-}
+from core.validation.widgets.base_model import CustomBaseModel
 
-VALIDATION_SCHEMA = {
-    "offline_label": {
-        "type": "string",
-        "default": DEFAULTS["offline_label"],
-    },
-    "populated_label": {
-        "type": "string",
-        "default": DEFAULTS["populated_label"],
-        "nullable": True,
-    },
-    "empty_label": {
-        "type": "string",
-        "default": DEFAULTS["empty_label"],
-        "nullable": True,
-    },
-    "active_populated_label": {
-        "type": "string",
-        "default": DEFAULTS["active_populated_label"],
-        "nullable": True,
-    },
-    "active_empty_label": {
-        "type": "string",
-        "default": DEFAULTS["active_empty_label"],
-        "nullable": True,
-    },
-    "hide_empty_workspaces": {
-        "type": "boolean",
-        "default": DEFAULTS["hide_empty_workspaces"],
-    },
-    "hide_if_offline": {
-        "type": "boolean",
-        "default": DEFAULTS["hide_if_offline"],
-    },
-    "container_padding": {"type": "dict", "default": DEFAULTS["container_padding"], "required": False},
-    "glazewm_server_uri": {
-        "type": "string",
-        "default": DEFAULTS["glazewm_server_uri"],
-    },
-    "container_shadow": {
-        "type": "dict",
-        "required": False,
-        "schema": {
-            "enabled": {"type": "boolean", "default": False},
-            "color": {"type": "string", "default": "black"},
-            "offset": {"type": "list", "default": [1, 1]},
-            "radius": {"type": "integer", "default": 3},
-        },
-        "default": DEFAULTS["default_shadow"],
-    },
-    "btn_shadow": {
-        "type": "dict",
-        "required": False,
-        "schema": {
-            "enabled": {"type": "boolean", "default": False},
-            "color": {"type": "string", "default": "black"},
-            "offset": {"type": "list", "default": [1, 1]},
-            "radius": {"type": "integer", "default": 3},
-        },
-        "default": DEFAULTS["default_shadow"],
-    },
-}
+
+class AppIconsConfig(CustomBaseModel):
+    enabled_populated: bool = False
+    enabled_active: bool = False
+    enabled_focused: bool | None = None
+    size: int = 16
+    max_icons: int = 0
+    hide_label: bool = False
+    hide_duplicates: bool = False
+    hide_floating: bool = False
+
+
+class GlazewmWorkspacesConfig(CustomBaseModel):
+    offline_label: str = "GlazeWM Offline"
+    populated_label: str | None = None
+    empty_label: str | None = None
+    active_populated_label: str | None = None
+    active_empty_label: str | None = None
+    focused_populated_label: str | None = None
+    focused_empty_label: str | None = None
+    hide_if_offline: bool = False
+    monitor_exclusive: bool = True
+    glazewm_server_uri: str = "ws://localhost:6123"
+    enable_scroll_switching: bool = True
+    reverse_scroll_direction: bool = False
+    app_icons: AppIconsConfig = AppIconsConfig()

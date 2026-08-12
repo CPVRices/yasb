@@ -1,38 +1,37 @@
 # Traffic Widget Options
 
+Displays your network upload and download speeds in real-time. You can filter by specific network adapters, choose between bits and bytes, align the labels, and set the widget to hide itself when your PC is offline.
+
 | Option          | Type    | Default                                                                 | Description                                                                 |
 |-----------------|---------|-------------------------------------------------------------------------|-----------------------------------------------------------------------------|
 | `label`         | string  | `'\ueb01 \ueab4 {download_speed} - \ueab7 {upload_speed}'`                | The format string for the traffic widget. Displays download and upload speeds. |
 | `label_alt`     | string  | `'Download {download_speed} - Upload {upload_speed}'`                | The alternative format string for the traffic widget. Displays upload and download speeds. |
+| `class_name`    | string  | `""`                                                                                  | Additional CSS class name for the widget.                                    |
 | `update_interval` | integer | `1000`                                                                 | The interval in milliseconds to update the traffic data. Must be between 1000 and 60000. |
 | `interface`       | string  | `Auto`                                                                  | The network interface to monitor. If not specified, the widget will use the default interface. |
-| `hide_if_offline` | boolean | `False`                                                                 | Hide the widget if the network interface is offline.                        |
+| `hide_if_offline` | boolean | `false`                                                                 | Hide the widget if the network interface is offline.                        |
 | `max_label_length` | integer | `0`                                                                    | The maximum length of the label.                                           |
 | `max_label_length_align` | string  | `'left'`                                                               | The alignment of the label when it exceeds the maximum length. Can be `left`, `center`, or `right`. |
 | `speed_unit`     | string  | `'bits'`                                                                | The unit of speed to display. Can be `bits` or `bytes`. |
 | `hide_decimal` | boolean | `False`                                                                 | Hide decimal in the label. If set to `True`, the label will not show decimal places in the speed values. |
 | `speed_threshold` | dict   | `{'min_upload': 1000, 'min_download': 1000}` | Minimum speed threshold for upload and download in bits. If the speed is below this threshold, the widget will not display the speed values. |
 | `callbacks`     | dict    | `{'on_left': 'toggle_label', 'on_middle': 'do_nothing', 'on_right': 'do_nothing'}` | Callbacks for mouse events on the traffic widget. |
-| `animation`         | dict    | `{'enabled': True, 'type': 'fadeInOut', 'duration': 200}`               | Animation settings for the widget.                                          |
-| `container_padding`  | dict | `{'top': 0, 'left': 0, 'bottom': 0, 'right': 0}`      | Explicitly set padding inside widget container. |
-| `container_shadow`   | dict   | `None`                  | Container shadow options.                       |
-| `label_shadow`         | dict   | `None`                  | Label shadow options.                 |
 | `menu`          | dict    | See below                  | Menu options for the widget. |
 
 
 ## Menu Options
 | Option               | Type    | Default    | Description                                                  |
 |----------------------|---------|------------|--------------------------------------------------------------|
-| `blur`               | bool    | `False`    | Blur background behind the popup.                            |
-| `round_corners`      | bool    | `True`     | Enable rounded corners on the popup.                         |
+| `blur`               | bool    | `false`    | Blur background behind the popup.                            |
+| `round_corners`      | bool    | `true`     | Enable rounded corners on the popup.                         |
 | `round_corners_type` | string  | `"normal"` | Rounding style: `"small"`, `"normal"`.         |
 | `border_color`       | string  | `"system"` | Border color can be `None`, `system` or `Hex Color` `"#ff0000"`       |
 | `alignment`          | string  | `"left"`   | Horizontal alignment of the menu relative to the widget (e.g., left, right, center)                 |
 | `direction`          | string  | `"down"`   | Vertical opening direction: `"up"` or `"down"`.              |
 | `offset_top`         | int     | `6`        | Vertical offset in pixels.                                   |
 | `offset_left`        | int     | `0`        | Horizontal offset in pixels.                                 |
-| `show_interface_name` | bool    | `True`     | Show the name of the network interface in the menu.          |
-| `show_internet_info` | bool    | `True`     | Show the internet connection information in the menu. Connected or disconnected status. |
+| `show_interface_name` | bool    | `true`     | Show the name of the network interface in the menu.          |
+| `show_internet_info` | bool    | `true`     | Show the internet connection information in the menu. Connected or disconnected status. |
 
 ## Available Callbacks
 - `toggle_label`: Toggles the label between the main and alternative formats.
@@ -69,16 +68,12 @@ traffic:
     callbacks:
       on_left: "toggle_menu"
       on_right: "toggle_label"
-    label_shadow:
-      enabled: true
-      color: "black"
-      radius: 3
-      offset: [ 1, 1 ]
 ```
 
 ## Description of Options
 - **label:** The format string for the traffic widget. Displays download and upload speeds.
 - **label_alt:** The alternative format string for the traffic widget. Displays upload and download speeds.
+- **class_name:** Additional CSS class name for the widget. This allows for custom styling.
 - **update_interval:** The interval in milliseconds to update the traffic data. Must be between 0 and 60000.
 - **interface:** The network interface to monitor. If not specified, the widget will use the default interface.
 - **hide_if_offline:** Hide the widget if the network interface is offline.
@@ -88,10 +83,6 @@ traffic:
 - **hide_decimal:** Hide decimal in the label. If set to `True`, the label will not show decimal places in the speed values.
 - **speed_threshold:** A dictionary specifying the minimum speed threshold for upload and download in bits. If the speed is below this threshold, the widget will not display the speed values.
 - **callbacks:** A dictionary specifying the callbacks for mouse events. The keys are `on_left`, `on_middle`, and `on_right`, and the values are the names of the callback functions.
-- **animation:** A dictionary specifying the animation settings for the widget. It contains three keys: `enabled`, `type`, and `duration`. The `type` can be `fadeInOut` and the `duration` is the animation duration in milliseconds.
-- **container_padding**: Explicitly set padding inside widget container. Use this option to set padding inside the widget container. You can set padding for top, left, bottom and right sides of the widget container.
-- **container_shadow:** Container shadow options.
-- **label_shadow:** Label shadow options.
 - **menu:** A dictionary specifying the menu options for the widget. See **Menu Options** above for details.
 
 > [!NOTE]  
@@ -102,6 +93,7 @@ traffic:
 ```css
 /* Main widget styling */
 .traffic-widget { }
+.traffic-widget.your_class {} /* If you are using class_name option */
 .traffic-widget .widget-container { }
 .traffic-widget .label { }
 .traffic-widget .label.offline { } /* offline state */
@@ -113,7 +105,7 @@ traffic:
 .traffic-menu { }
 .traffic-menu .header { }
 .traffic-menu .header .title { }
-.traffic-menu .header .resset-button { }
+.traffic-menu .header .reset-button { }
 .traffic-menu .interface-info { }
 .traffic-menu .internet-info { }
 .traffic-menu .internet-info.checking { }

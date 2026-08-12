@@ -1,28 +1,46 @@
-import platform
-import re
+import math
+from enum import StrEnum
 from functools import lru_cache
-from typing import Any, cast
+from typing import Any, cast, override
 
-import psutil
-from PyQt6.QtCore import QEvent, QPoint, Qt
-from PyQt6.QtGui import QColor, QScreen
-from PyQt6.QtWidgets import QApplication, QFrame, QGraphicsDropShadowEffect, QLabel, QWidget
+from PyQt6.QtCore import (
+    QEasingCurve,
+    QEvent,
+    QObject,
+    QPoint,
+    QPropertyAnimation,
+    QRect,
+    QSize,
+    Qt,
+    QTimer,
+    pyqtSlot,
+)
+from PyQt6.QtGui import (
+    QFontMetrics,
+    QHideEvent,
+    QPainter,
+    QPaintEvent,
+    QResizeEvent,
+    QScreen,
+    QShowEvent,
+    QStaticText,
+    QTransform,
+)
+from PyQt6.QtWidgets import (
+    QApplication,
+    QDialog,
+    QFrame,
+    QLabel,
+    QMenu,
+    QSizePolicy,
+    QWidget,
+)
 from winrt.windows.data.xml.dom import XmlDocument
 from winrt.windows.ui.notifications import ToastNotification, ToastNotificationManager
 
-from core.utils.win32.blurWindow import Blur
-
-
-def is_windows_10() -> bool:
-    version = platform.version()
-    return bool(re.match(r"^10\.0\.1\d{4}$", version))
-
-
-def is_process_running(process_name: str) -> bool:
-    for proc in psutil.process_iter(["name"]):
-        if proc.info["name"] == process_name:
-            return True
-    return False
+from core.utils.qobject import is_valid_qobject
+from core.utils.system import is_windows_10
+from core.utils.win32.backdrop import enable_blur
 
 
 def percent_to_float(percent: str) -> float:
@@ -33,72 +51,48 @@ def is_valid_percentage_str(s: str) -> bool:
     return s.endswith("%") and len(s) <= 4 and s[:-1].isdigit()
 
 
-def get_screen_by_name(screen_name: str) -> QScreen:
-    return next(filter(lambda scr: screen_name in scr.name(), QApplication.screens()), None)
+def get_screen_by_name(screen_name: str) -> QScreen | None:
+    screens = QApplication.screens()
+    for scr in screens:
+        if scr.name() == screen_name:
+            return scr
+    return next(filter(lambda scr: screen_name in scr.name(), screens), None)
 
 
-def add_shadow(el: QWidget, options: dict[str, Any]) -> None:
-    """ "Add a shadow effect to a given element."""
+def refresh_widget_style(*widgets: QWidget) -> None:
+    """Refresh the style of the given widgets."""
+    for widget in widgets:
+        if widget is None or not is_valid_qobject(widget):
+            continue
+        style = widget.style()
+        if not style:
+            continue
+        try:
+            style.unpolish(widget)
+            style.polish(widget)
+        except Exception:
+            pass
+
+
+def build_progress_widget(self, options: dict[str, Any]) -> None:
+    """Builds a circular or linear progress widget based on the provided options."""
     if not options["enabled"]:
         return
 
-    shadow_effect = QGraphicsDropShadowEffect(el)
-    shadow_effect.setOffset(options["offset"][0], options["offset"][1])
-    shadow_effect.setBlurRadius(options["radius"])
+    from core.utils.progress_bar import ProgressBar, ProgressWidget
 
-    color = options["color"]
-    if color.startswith("#"):
-        color = color.lstrip("#")
-        # Handle hex with alpha (#RRGGBBAA format)
-        if len(color) == 8:
-            r = int(color[0:2], 16)
-            g = int(color[2:4], 16)
-            b = int(color[4:6], 16)
-            a = int(color[6:8], 16)
-            shadow_effect.setColor(QColor(r, g, b, a))
-        else:
-            # Regular hex color without alpha
-            shadow_effect.setColor(QColor("#" + color))
-    else:
-        # Named colors like "black", "red", etc.
-        shadow_effect.setColor(QColor(color))
-
-    el.setGraphicsEffect(shadow_effect)
-
-
-def build_widget_label(self, content: str, content_alt: str = None, content_shadow: dict = None):
-    def process_content(content, is_alt=False):
-        label_parts = re.split("(<span.*?>.*?</span>)", content)
-        label_parts = [part for part in label_parts if part]
-        widgets = []
-        for part in label_parts:
-            part = part.strip()
-            if not part:
-                continue
-            if "<span" in part and "</span>" in part:
-                class_name = re.search(r'class=(["\'])([^"\']+?)\1', part)
-                class_result = class_name.group(2) if class_name else "icon"
-                icon = re.sub(r"<span.*?>|</span>", "", part).strip()
-                label = QLabel(icon)
-                label.setProperty("class", class_result)
-            else:
-                label = QLabel(part)
-                label.setProperty("class", "label alt" if is_alt else "label")
-            label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            label.setCursor(Qt.CursorShape.PointingHandCursor)
-            if content_shadow:
-                add_shadow(label, content_shadow)
-            self._widget_container_layout.addWidget(label)
-            widgets.append(label)
-            if is_alt:
-                label.hide()
-            else:
-                label.show()
-        return widgets
-
-    self._widgets = process_content(content)
-    if content_alt:
-        self._widgets_alt = process_content(content_alt, is_alt=True)
+    self.progress_data = ProgressBar(
+        parent=self,
+        size=options["size"],
+        thickness=options["thickness"],
+        color=options["color"],
+        background_color=options["background_color"],
+        animation=options["animation"],
+        progress_type=options.get("progress_type", "circular"),
+        radius=options.get("radius", 0),
+    )
+    self.progress_widget = ProgressWidget(self.progress_data)
+    return self.progress_widget
 
 
 @lru_cache(maxsize=1)
@@ -109,14 +103,14 @@ def get_app_identifier():
     import winreg
     from pathlib import Path
 
-    from settings import APP_ID
+    from settings import APP_ID, IS_FROZEN
 
     try:
         key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, f"SOFTWARE\\Classes\\AppUserModelId\\{APP_ID}")
         winreg.CloseKey(key)
         return APP_ID
     except:
-        if getattr(sys, "frozen", False):
+        if IS_FROZEN:
             # Check if YASB is installed via Scoop and if so, return the path to the executable
             # This is a workaround for the issue where the registry key doesn't exist to return the correct App name and icon
             scoop_shortcut = os.path.join(
@@ -131,7 +125,7 @@ def get_app_identifier():
             if Path(scoop_shortcut).exists():
                 return sys.executable
         # Fallback to the default AppUserModelID
-        return "Yasb"
+        return "YASB"
 
 
 class PopupWidget(QWidget):
@@ -143,20 +137,43 @@ class PopupWidget(QWidget):
         _round_corners (bool): Whether to round the corners of the popup.
         _round_corners_type (str): Type of round corners to apply.
         _border_color (str): Color of the border.
+        _dark_mode (bool): Whether the popup is in dark mode.
+        _persistent (bool): Whether the popup widget should persist in memory after being closed instead of being deleted.
+        _pinnable (bool): When True the window uses the Tool flag so it is not auto-dismissed by Qt.
+                          Call set_pinned(True/False) at runtime to toggle pin/drag behaviour.
     Methods:
         setProperty(name, value): Set a property for the popup widget.
         setPosition(alignment, direction, offset_left, offset_top): Position the popup relative to its parent widget.
+        set_pinned(pinned): Toggle the pinned state (drag + ignore outside clicks).
         showEvent(event): Handle the show event for the popup.
         eventFilter(obj, event): Filter events to detect clicks outside the popup.
         hideEvent(event): Handle the hide event for the popup.
         resizeEvent(event): Handle the resize event for the popup.
     """
 
-    def __init__(self, parent=None, blur=False, round_corners=False, round_corners_type="normal", border_color="None"):
+    # Class-level registry to track open popups per parent widget
+    # This will help to manage toggle behavior when we use keybindings to open/close popups
+    # But this should be revisited maybe is there a better way to manage this
+    _open_popups: dict[int, PopupWidget] = {}
+
+    def __init__(
+        self,
+        parent: QWidget,
+        blur: bool = False,
+        round_corners: bool = False,
+        round_corners_type: str = "normal",
+        border_color: str = "None",
+        dark_mode: bool = False,
+        persistent: bool = False,
+        pinnable: bool = False,
+    ):
         super().__init__(parent)
 
+        # Use Tool flag when pinnable so Qt never auto-dismisses the window.
+        # Use Popup flag otherwise for standard auto-dismiss behaviour.
+        window_type = Qt.WindowType.Tool if pinnable else Qt.WindowType.Popup
         self.setWindowFlags(
-            Qt.WindowType.Popup
+            window_type
             | Qt.WindowType.FramelessWindowHint
             | Qt.WindowType.WindowStaysOnTopHint
             | Qt.WindowType.NoDropShadowWindowHint
@@ -166,11 +183,21 @@ class PopupWidget(QWidget):
         self._round_corners = round_corners
         self._round_corners_type = round_corners_type
         self._border_color = border_color
-
+        self._dark_mode = dark_mode
+        self._persistent = persistent
+        self._parent = parent
+        self._suspend_close = False
+        self._pinnable = pinnable
+        self._pinned = False
+        self._drag_pos = None
         # Create the inner frame
         self._popup_content = QFrame(self)
 
-        QApplication.instance().installEventFilter(self)
+        self._fade_animation = QPropertyAnimation(self, b"windowOpacity")
+        self._fade_animation.setDuration(80)
+        self._fade_animation.finished.connect(self._on_animation_finished)
+
+        self._is_closing = False
 
     def setProperty(self, name, value):
         super().setProperty(name, value)
@@ -222,6 +249,52 @@ class PopupWidget(QWidget):
             global_position = QPoint(x, y)
         self.move(global_position)
 
+    def set_pinned(self, pinned: bool) -> None:
+        """Toggle the pinned state. Only meaningful when pinnable=True.
+        When pinned the window ignores outside clicks and can be dragged.
+        """
+        if not self._pinnable:
+            return
+        self._pinned = pinned
+        if not pinned:
+            self._drag_pos = None
+
+    def mousePressEvent(self, event):
+        if self._pinnable and self._pinned and event.button() == Qt.MouseButton.LeftButton:
+            self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if (
+            self._pinnable
+            and self._pinned
+            and self._drag_pos is not None
+            and event.buttons() & Qt.MouseButton.LeftButton
+        ):
+            self.move(event.globalPosition().toPoint() - self._drag_pos)
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if self._pinnable and self._pinned and event.button() == Qt.MouseButton.LeftButton:
+            self._drag_pos = None
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
+
+    def event(self, event):
+        # Tool-type windows (pinnable=True) don't auto-close on WindowDeactivate the way
+        # Popup-type windows do, so we replicate that behaviour here:
+        # close when not pinned, stay open when pinned.
+        if event.type() == QEvent.Type.WindowDeactivate and self._pinnable:
+            if not self._pinned:
+                self.hide_animated()
+            return True
+        return super().event(event)
+
     def _add_separator(self, layout):
         separator = QFrame(self)
         separator.setFrameShape(QFrame.Shape.HLine)
@@ -229,49 +302,183 @@ class PopupWidget(QWidget):
         separator.setStyleSheet("border:none")
         layout.addWidget(separator)
 
+    def _on_animation_finished(self):
+        """Handle animation completion."""
+        if self._is_closing:
+            # Remove from registry
+            try:
+                parent_id = id(self._parent)
+                if parent_id in PopupWidget._open_popups and PopupWidget._open_popups[parent_id] is self:
+                    PopupWidget._open_popups.pop(parent_id, None)
+            except Exception:
+                pass
+
+            try:
+                super().hide()
+                if not self._persistent:
+                    self.deleteLater()
+
+            except Exception:
+                pass
+
+    def hide_animated(self):
+        """Hide the popup with animation."""
+        if self._is_closing:
+            return
+        try:
+            if self._fade_animation.state() == QPropertyAnimation.State.Running:
+                self._fade_animation.stop()
+        except Exception:
+            pass
+
+        current_opacity = self.windowOpacity()
+        if current_opacity <= 0.0:
+            current_opacity = 1.0
+            self.setWindowOpacity(1.0)
+
+        self._is_closing = True
+
+        self._fade_animation.setEasingCurve(QEasingCurve.Type.InCubic)
+        self._fade_animation.setStartValue(current_opacity)
+        self._fade_animation.setEndValue(0.0)
+        self._fade_animation.start()
+
+    def hide(self):
+        """Hide the popup immediately without animation."""
+        try:
+            if self._fade_animation.state() == QPropertyAnimation.State.Running:
+                self._fade_animation.stop()
+        except Exception:
+            pass
+
+        self._is_closing = True
+
+        # Remove from registry
+        try:
+            parent_id = id(self._parent)
+            if parent_id in PopupWidget._open_popups and PopupWidget._open_popups[parent_id] is self:
+                PopupWidget._open_popups.pop(parent_id, None)
+        except Exception:
+            pass
+
+        try:
+            super().hide()
+            if not self._persistent:
+                self.deleteLater()
+        except Exception:
+            pass
+
+    def closeEvent(self, event):
+        """Override close event to use animation."""
+        event.ignore()  # Ignore the default close behavior
+        self.hide_animated()
+
+    def show(self):
+        """Show the popup with toggle support."""
+        parent_id = id(self._parent)
+
+        if parent_id in PopupWidget._open_popups:
+            existing_popup = PopupWidget._open_popups[parent_id]
+            if existing_popup is not self:
+                try:
+                    # Only toggle-close if popup is visible and NOT already closing
+                    # (if _is_closing is True, it means eventFilter already handled it)
+                    if existing_popup.isVisible() and not existing_popup._is_closing:
+                        existing_popup.hide_animated()
+                        return
+                except RuntimeError:
+                    pass
+                PopupWidget._open_popups.pop(parent_id, None)
+
+        super().show()
+
     def showEvent(self, event):
+        # Install event filter only when popup is actually shown
+        QApplication.instance().installEventFilter(self)
+
+        # Register this popup in the class-level registry for toggle support
+        parent_id = id(self._parent)
+        PopupWidget._open_popups[parent_id] = self
+
+        # Clear stuck :hover state scoped to the bar widget's own content only.
+        if self._parent:
+            self._parent.clear_hover_state()
+
         if self._blur:
-            Blur(
+            enable_blur(
                 self.winId(),
-                Acrylic=True if is_windows_10() else False,
-                DarkMode=False,
+                DarkMode=self._dark_mode,
                 RoundCorners=False if is_windows_10() else self._round_corners,
                 RoundCornersType=self._round_corners_type,
                 BorderColor=self._border_color,
             )
-        self.activateWindow()
-        super().showEvent(event)
 
-    def eventFilter(self, obj, event):
-        if event.type() == QEvent.Type.MouseButtonPress:
-            global_pos = event.globalPosition().toPoint()
-            if not self.geometry().contains(global_pos):
-                self.hide()
-                self.deleteLater()
-                return True
-        return super().eventFilter(obj, event)
-
-    def hideEvent(self, event):
-        QApplication.instance().removeEventFilter(self)
-        super().hideEvent(event)
-
+        # Reset closing state and stop any ongoing fade animation
+        self._is_closing = False
         try:
-            bar_el = self.parent()
-            while bar_el and not hasattr(bar_el, "_autohide_bar"):
-                bar_el = bar_el.parent()
-
-            if bar_el:
-                # Check if parent needs autohide
-                if bar_el._autohide_bar:
-                    # Get current cursor position
-                    from PyQt6.QtGui import QCursor
-
-                    cursor_pos = QCursor.pos()
-                    # If mouse is outside the bar, start the hide timer
-                    if not bar_el.geometry().contains(cursor_pos):
-                        bar_el._hide_timer.start(bar_el._autohide_delay)
+            if self._fade_animation.state() == QPropertyAnimation.State.Running:
+                self._fade_animation.stop()
         except Exception:
             pass
+
+        # Set initial opacity and show
+        self.setWindowOpacity(0.0)
+
+        super().showEvent(event)
+
+        self.activateWindow()
+        self._fade_animation.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._fade_animation.setStartValue(0.0)
+        self._fade_animation.setEndValue(1.0)
+        self._fade_animation.start()
+
+    def eventFilter(self, obj, event):
+        if not isinstance(obj, QObject):
+            return False
+        if self._suspend_close or self._pinned:
+            return super().eventFilter(obj, event)
+        if event.type() == QEvent.Type.MouseButtonPress:
+            global_pos = event.globalPosition().toPoint()
+
+            # Check if click is inside popup
+            try:
+                popup_global_geom = QRect(self.mapToGlobal(QPoint(0, 0)), self.size())
+            except Exception:
+                popup_global_geom = self.geometry()
+            if popup_global_geom.contains(global_pos):
+                return super().eventFilter(obj, event)
+
+            # Check if click is inside any visible QMenu or QDialog (file dialogs, etc.)
+            try:
+                for w in QApplication.topLevelWidgets():
+                    if isinstance(w, (QMenu, QDialog)) and w.isVisible() and w is not self:
+                        try:
+                            w_global_geom = QRect(w.mapToGlobal(QPoint(0, 0)), w.size())
+                            if w_global_geom.contains(global_pos):
+                                return super().eventFilter(obj, event)
+                        except Exception:
+                            continue
+            except Exception:
+                pass
+
+            # Otherwise, close all open QMenus first
+            for menu in self.findChildren(QMenu):
+                if menu.isVisible():
+                    menu.close()
+
+            self.hide_animated()
+            return True
+        return super().eventFilter(obj, event)
+
+    def set_auto_close_enabled(self, enabled: bool):
+        """Enable/disable auto-close behavior when clicking outside."""
+        self._suspend_close = not enabled
+
+    def hideEvent(self, event):
+        if self._is_closing:
+            QApplication.instance().removeEventFilter(self)
+
+        super().hideEvent(event)
 
     def resizeEvent(self, event):
         # reset geometry
@@ -295,11 +502,32 @@ class ToastNotifier:
         self.manager = ToastNotificationManager.get_default()
         self.toaster = self.manager.create_toast_notifier_with_id(get_app_identifier())
 
-    def show(self, icon_path: str, title: str, message: str, duration: str = "short") -> None:
+    def show(
+        self,
+        icon_path: str,
+        title: str,
+        message: str,
+        duration: str = "short",
+        launch_url: str = None,
+        scenario: str = None,
+    ) -> None:
         # refer to https://learn.microsoft.com/en-us/uwp/schemas/tiles/toastschema/schema-root
+        scenario = ' scenario="reminder"' if scenario else ""
+        actions = (
+            f"""
+            <actions>
+                <action
+                    content="Download &amp; Install"
+                    activationType="protocol"
+                    arguments="{launch_url}"/>
+            </actions>
+            """
+            if launch_url
+            else ""
+        )
         xml = XmlDocument()
         xml.load_xml(f"""
-        <toast activationType="protocol" duration="{duration}">
+        <toast activationType="protocol" duration="{duration}"{scenario}>
             <visual>
                 <binding template="ToastGeneric">
                     <image placement="appLogoOverride" hint-crop="circle" src="{icon_path}"/>
@@ -307,16 +535,324 @@ class ToastNotifier:
                     <text>{message}</text>
                 </binding>
             </visual>
+            {actions}
         </toast>
         """)
         notification = ToastNotification(xml)
         self.toaster.show(notification)
 
 
-class Singleton(type):
-    _instances = {}
+class ElidedLabel(QLabel):
+    """
+    QLabel that automatically elides text with "..." when it doesn't fit,
+    while preserving the original via `text()`.
+    """
 
-    def __call__(cls, *args, **kwargs):
-        if cls not in cls._instances:
-            cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
-        return cls._instances[cls]
+    def __init__(self, text: str = "", parent: QWidget | None = None):
+        super().__init__(text, parent)
+        self._text = text
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self.setMinimumWidth(0)
+
+    @override
+    def setText(self, text: str) -> None:
+        self._text = text
+        self._update_elided_text()
+
+    @override
+    def text(self) -> str:
+        return self._text
+
+    @override
+    def resizeEvent(self, event: QResizeEvent | None) -> None:
+        super().resizeEvent(event)
+        self._update_elided_text()
+
+    def _update_elided_text(self) -> None:
+        metrics = QFontMetrics(self.font())
+        # Keep a small margin to avoid edge-clipping and layout loops.
+        available_width = max(self.width() - 4, 0)
+        elided = metrics.elidedText(
+            self._text,
+            Qt.TextElideMode.ElideRight,
+            available_width,
+        )
+        super().setText(elided)
+
+
+class ScrollingLabel(QLabel):
+    """
+    A QLabel that scrolls its text based on a speed parameter.
+    Compatible with the default QtCSS styling.
+
+    Args:
+        parent (QWidget): The parent widget.
+        text (str): The text to display.
+        max_width (int): The maximum width of the label in characters.
+        options (dict[str, Any]): A dictionary of options for the scrolling label.
+            update_interval_ms (int): The frequency of the scrolling update in ms (default: 33).
+            style (ScrollingLabel.Style): The style of scrolling (default: ScrollingLabel.Style.SCROLL).
+            separator (str): The separator between the text (only added if scrolling occurs).
+            label_padding (int): The padding around the text (default: 1).
+            ease_slope (int): The slope of the easing function (default: 20).
+            ease_pos (float): The position of the easing function (default: 0.8).
+            ease_min_value (float): The minimum value of the easing function (default: 0.5).
+            always_scroll (bool): If True, scroll/right modes always scroll.
+                                     If False (default), only scroll if text is wider than the label.
+    """
+
+    class Style(StrEnum):
+        SCROLL_LEFT = "left"
+        SCROLL_RIGHT = "right"
+        BOUNCE = "bounce"
+        BOUNCE_EASE = "bounce-ease"
+
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        text: str = "",
+        max_width: int | None = None,
+        options: dict[str, Any] | None = None,
+    ):
+        super().__init__(parent)
+        if options is None:
+            options = {}
+        self._update_interval: int = max(min(options.get("update_interval_ms", 33), 1000), 4)
+        self._ease_slope: int = options.get("ease_slope", 20)
+        self._ease_pos: float = options.get("ease_pos", 0.8)
+        self._ease_min: float = max(min(options.get("ease_min_value", 0.5), 1), 0.2)
+        self._style = ScrollingLabel.Style(options.get("style", "left"))
+        self._always_scroll: bool = options.get("always_scroll", False)
+
+        self._separator_str = ""
+        if self._style not in {self.Style.BOUNCE, self.Style.BOUNCE_EASE}:
+            self._separator_str = options.get("separator", " ")
+
+        self._label_padding_chars = ""
+        if self._style in {self.Style.BOUNCE, self.Style.BOUNCE_EASE}:
+            self._label_padding_chars = " " * options.get("label_padding", 1)
+
+        self._max_width = max_width
+        self._margin = self.contentsMargins()
+        self._bounce_direction = -1
+        self._offset = 0
+        self._scrolling_needed = False
+
+        # Store the original, un-padded/un-separated text
+        self._raw_text = text
+        self._text = ""  # Will be built by _build_text_and_metrics
+
+        # Initialize metrics and text
+        self._font_metrics = QFontMetrics(self.font())
+        self._build_text_and_metrics()
+
+        self._scroll_timer = QTimer(self)
+        self._scroll_timer.timeout.connect(self._scroll_text)
+        if not self._scrolling_needed:
+            self._set_idle_offset()
+        self._sync_scroll_timer()
+
+    def _ease(self, offset: int, max_offset: int, slope: int = 20, pos: float = 0.8, min_value: float = 0.5) -> float:
+        """
+        Ease function for scrolling labels in bounce ease mode
+        Returns a value between `min_value` and 1.0 based on the offset.
+        The value is 1.0 at the center and drops to `min_value` at the ends.
+        Demo: https://www.desmos.com/calculator/j7eamemxzi
+        """
+        x = abs(2 * (offset / max_offset) - 1 if max_offset else 0)
+        return (1 + math.tanh(-slope * (x - pos))) * (1 - min_value) / 2 + min_value
+
+    def _sync_scroll_timer(self) -> None:
+        if not hasattr(self, "_scroll_timer"):
+            return
+
+        if self._scrolling_needed and self.isVisible():
+            if not self._scroll_timer.isActive():
+                self._scroll_timer.start(self._update_interval)
+        else:
+            if self._scroll_timer.isActive():
+                self._scroll_timer.stop()
+            if self._style == ScrollingLabel.Style.BOUNCE_EASE:
+                self._scroll_timer.setInterval(self._update_interval)
+
+    def _set_idle_offset(self) -> None:
+        label_width = self.width() - self._margin.left() - self._margin.right()
+        if self._style in {ScrollingLabel.Style.BOUNCE, ScrollingLabel.Style.BOUNCE_EASE}:
+            self._offset = (self._text_width - label_width) // 2  # Center the text
+        else:
+            self._offset = 0  # Reset to left-aligned
+
+    @override
+    def setText(self, a0: str | None):
+        super().setText(a0)
+        self._offset = 0
+        self._raw_text = a0 or ""
+
+        # Re-build text, re-calculate metrics, and check for scrolling
+        self._build_text_and_metrics()
+        # Update offset immediately based on new state
+        self._scroll_text()
+
+    def _build_text_and_metrics(self):
+        """
+        Builds the final text string and updates all text metrics.
+        This resolves the dependency between scrolling state and the separator.
+        """
+        self.ensurePolished()
+        self._margin = self.contentsMargins()
+        self._font_metrics = QFontMetrics(self.font())
+
+        label_width = self.width() - self._margin.left() - self._margin.right()
+
+        # First, determine scrolling state based on raw text
+        base_text = self._label_padding_chars + self._raw_text + self._label_padding_chars
+        base_bb_width = self._font_metrics.boundingRect(base_text).width()
+        text_is_wider = base_bb_width > label_width
+
+        if self._style in {ScrollingLabel.Style.SCROLL_LEFT, ScrollingLabel.Style.SCROLL_RIGHT}:
+            self._scrolling_needed = self._always_scroll or text_is_wider
+        elif self._style in {ScrollingLabel.Style.BOUNCE, ScrollingLabel.Style.BOUNCE_EASE}:
+            self._scrolling_needed = text_is_wider
+        else:
+            self._scrolling_needed = False
+
+        # Build the final text string based on scrolling state
+        if self._scrolling_needed and self._style in {
+            ScrollingLabel.Style.SCROLL_LEFT,
+            ScrollingLabel.Style.SCROLL_RIGHT,
+        }:
+            # Add separator only if scrolling
+            self._text = self._label_padding_chars + self._raw_text + self._separator_str + self._label_padding_chars
+        else:
+            # No separator if not scrolling or bounce mode
+            self._text = self._label_padding_chars + self._raw_text + self._label_padding_chars
+
+        # Prepare QStaticText and update metrics based on final text
+        self._static_text = QStaticText(self._text)
+        self._static_text.prepare(QTransform(), self.font())
+
+        self._text_width = max(self._font_metrics.horizontalAdvance(self._text), 1)
+        self._text_bb_width = self._font_metrics.boundingRect(self._text).width()
+        self._text_y = (self.height() + self._font_metrics.ascent() - self._font_metrics.descent() + 1) // 2
+
+        if self._max_width:
+            self.setMaximumWidth(self._font_metrics.averageCharWidth() * self._max_width)
+
+    @pyqtSlot()
+    def _scroll_text(self):
+        """Update the offset based on the state calculated in _build_text_and_metrics()"""
+        if not self._scrolling_needed:
+            self._set_idle_offset()
+            self._sync_scroll_timer()
+            if self.isVisible():
+                self.update()
+            return
+
+        if not self.isVisible():
+            self._sync_scroll_timer()
+            return
+
+        if self._style == ScrollingLabel.Style.SCROLL_LEFT:
+            self._offset = (self._offset + 1) % self._text_width
+        elif self._style == ScrollingLabel.Style.SCROLL_RIGHT:
+            self._offset -= 1
+            if self._offset <= -self._text_width:
+                self._offset = 0
+        elif self._style in {ScrollingLabel.Style.BOUNCE, ScrollingLabel.Style.BOUNCE_EASE}:
+            label_width = self.width() - self._margin.left() - self._margin.right()
+            max_offset = self._text_width - label_width
+            if self._style == ScrollingLabel.Style.BOUNCE_EASE:
+                easing_factor = self._ease(
+                    self._offset,
+                    max_offset,
+                    self._ease_slope,
+                    self._ease_pos,
+                    self._ease_min,
+                )
+                new_interval = int(self._update_interval * 1 / easing_factor)
+                self._scroll_timer.setInterval(new_interval)
+            self._offset += self._bounce_direction
+            if self._offset >= max_offset:
+                self._offset = max_offset
+                self._bounce_direction = -1
+            elif self._offset <= 0:
+                self._offset = 0
+                self._bounce_direction = 1
+
+        self._sync_scroll_timer()
+        self.update()
+
+    @override
+    def paintEvent(self, a0: QPaintEvent | None):
+        painter = QPainter(self)
+
+        content_rect = QRect(
+            self._margin.left(),
+            self._margin.top(),
+            self.width() - self._margin.left() - self._margin.right(),
+            self.height() - self._margin.top() - self._margin.bottom(),
+        )
+        painter.setClipRect(content_rect)
+
+        x = self._margin.left() - self._offset
+        text_y = self._text_y - self._font_metrics.ascent()
+
+        if self._style == ScrollingLabel.Style.SCROLL_LEFT:
+            if self._scrolling_needed:
+                extra_text = x - self._text_width
+                painter.drawStaticText(extra_text, text_y, self._static_text)
+                while x < self._margin.left() + content_rect.width():
+                    painter.drawStaticText(x, text_y, self._static_text)
+                    x += self._text_width
+            else:
+                painter.drawStaticText(self._margin.left(), text_y, self._static_text)
+
+        elif self._style == ScrollingLabel.Style.SCROLL_RIGHT:
+            if self._scrolling_needed:
+                extra_text = x + self._text_width
+                painter.drawStaticText(extra_text, text_y, self._static_text)
+                while x > self._margin.left() - self._text_width:
+                    painter.drawStaticText(x, text_y, self._static_text)
+                    x -= self._text_width
+            else:
+                painter.drawStaticText(self._margin.left(), text_y, self._static_text)
+
+        elif self._style in {ScrollingLabel.Style.BOUNCE, ScrollingLabel.Style.BOUNCE_EASE}:
+            x = self._margin.left() - self._offset
+            painter.drawStaticText(x, text_y, self._static_text)
+
+    def sizeHint(self) -> QSize:
+        # Use metrics we already have if possible.
+        if not hasattr(self, "_font_metrics"):
+            self._font_metrics = QFontMetrics(self.font())
+        if not hasattr(self, "_margin"):
+            self._margin = self.contentsMargins()
+
+        # Calculate hint based on raw text + padding, not the final text
+        base_text = self._label_padding_chars + self._raw_text + self._label_padding_chars
+        b_rect = self._font_metrics.boundingRect(base_text)
+
+        width = max(1, b_rect.width() + self._margin.left() + self._margin.right())
+        height = max(1, b_rect.height() + self._margin.top() + self._margin.bottom())
+        return QSize(min(self.maximumWidth(), width), min(self.maximumHeight(), height))
+
+    @override
+    def showEvent(self, a0: QShowEvent | None):
+        super().showEvent(a0)
+        self._sync_scroll_timer()
+
+    @override
+    def hideEvent(self, a0: QHideEvent | None):
+        if self._scroll_timer.isActive():
+            self._scroll_timer.stop()
+        if self._style == ScrollingLabel.Style.BOUNCE_EASE:
+            self._scroll_timer.setInterval(self._update_interval)
+        super().hideEvent(a0)
+
+    @override
+    def resizeEvent(self, a0: QResizeEvent | None):
+        super().resizeEvent(a0)
+        # Re-build text, re-calculate metrics, and check for scrolling
+        self._build_text_and_metrics()
+        # Update offset immediately based on new state
+        self._scroll_text()

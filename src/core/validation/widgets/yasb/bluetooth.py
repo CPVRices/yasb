@@ -1,106 +1,92 @@
-DEFAULTS = {
-    "label": "\udb80\udcb1",
-    "label_alt": "\uf293",
-    "label_no_device": "No devices connected",
-    "label_device_separator": ", ",
-    "max_length": None,
-    "max_length_ellipsis": "...",
-    "tooltip": True,
-    "icons": {
-        "bluetooth_on": "\udb80\udcaf",
-        "bluetooth_off": "\udb80\udcb2",
-        "bluetooth_connected": "\udb80\udcb1",
-    },
-    "device_aliases": [],
-    "animation": {"enabled": True, "type": "fadeInOut", "duration": 200},
-    "container_padding": {"top": 0, "left": 0, "bottom": 0, "right": 0},
-    "callbacks": {"on_left": "toggle_label", "on_middle": "do_nothing", "on_right": "do_nothing"},
-}
+from core.validation.widgets.base_model import (
+    CallbacksConfig,
+    CustomBaseModel,
+    KeybindingConfig,
+)
 
-VALIDATION_SCHEMA = {
-    "label": {"type": "string", "default": DEFAULTS["label"]},
-    "label_alt": {"type": "string", "default": DEFAULTS["label_alt"]},
-    "label_no_device": {"type": "string", "default": DEFAULTS["label_no_device"]},
-    "label_device_separator": {"type": "string", "default": DEFAULTS["label_device_separator"]},
-    "max_length": {"type": "integer", "min": 1, "nullable": True, "default": DEFAULTS["max_length"]},
-    "max_length_ellipsis": {"type": "string", "default": DEFAULTS["max_length_ellipsis"]},
-    "tooltip": {"type": "boolean", "required": False, "default": DEFAULTS["tooltip"]},
-    "icons": {
-        "type": "dict",
-        "schema": {
-            "bluetooth_on": {"type": "string", "default": DEFAULTS["icons"]["bluetooth_on"]},
-            "bluetooth_off": {"type": "string", "default": DEFAULTS["icons"]["bluetooth_off"]},
-            "bluetooth_connected": {"type": "string", "default": DEFAULTS["icons"]["bluetooth_connected"]},
-        },
-        "default": DEFAULTS["icons"],
-    },
-    "device_aliases": {
-        "type": "list",
-        "schema": {
-            "type": "dict",
-            "schema": {"name": {"type": "string", "required": True}, "alias": {"type": "string", "required": True}},
-        },
-        "default": DEFAULTS["device_aliases"],
-    },
-    "animation": {
-        "type": "dict",
-        "required": False,
-        "schema": {
-            "enabled": {"type": "boolean", "default": DEFAULTS["animation"]["enabled"]},
-            "type": {"type": "string", "default": DEFAULTS["animation"]["type"]},
-            "duration": {"type": "integer", "default": DEFAULTS["animation"]["duration"]},
-        },
-        "default": DEFAULTS["animation"],
-    },
-    "container_padding": {
-        "type": "dict",
-        "required": False,
-        "schema": {
-            "top": {"type": "integer", "default": DEFAULTS["container_padding"]["top"]},
-            "left": {"type": "integer", "default": DEFAULTS["container_padding"]["left"]},
-            "bottom": {"type": "integer", "default": DEFAULTS["container_padding"]["bottom"]},
-            "right": {"type": "integer", "default": DEFAULTS["container_padding"]["right"]},
-        },
-        "default": DEFAULTS["container_padding"],
-    },
-    "label_shadow": {
-        "type": "dict",
-        "required": False,
-        "schema": {
-            "enabled": {"type": "boolean", "default": False},
-            "color": {"type": "string", "default": "black"},
-            "offset": {"type": "list", "default": [1, 1]},
-            "radius": {"type": "integer", "default": 3},
-        },
-        "default": {"enabled": False, "color": "black", "offset": [1, 1], "radius": 3},
-    },
-    "container_shadow": {
-        "type": "dict",
-        "required": False,
-        "schema": {
-            "enabled": {"type": "boolean", "default": False},
-            "color": {"type": "string", "default": "black"},
-            "offset": {"type": "list", "default": [1, 1]},
-            "radius": {"type": "integer", "default": 3},
-        },
-        "default": {"enabled": False, "color": "black", "offset": [1, 1], "radius": 3},
-    },
-    "callbacks": {
-        "type": "dict",
-        "schema": {
-            "on_left": {
-                "type": "string",
-                "default": DEFAULTS["callbacks"]["on_left"],
-            },
-            "on_middle": {
-                "type": "string",
-                "default": DEFAULTS["callbacks"]["on_middle"],
-            },
-            "on_right": {
-                "type": "string",
-                "default": DEFAULTS["callbacks"]["on_right"],
-            },
-        },
-        "default": DEFAULTS["callbacks"],
-    },
-}
+
+class BluetoothIconsConfig(CustomBaseModel):
+    bluetooth_on: str = "\ue702"
+    bluetooth_off: str = "\ue702"
+    bluetooth_connected: str = "\ue702"
+
+
+class BluetoothBatteryIconsConfig(CustomBaseModel):
+    empty: str = "\ueba0"
+    low: str = "\ueba2"
+    medium: str = "\ueba5"
+    high: str = "\ueba8"
+    full: str = "\uebaa"
+
+
+class BluetoothDeviceIconsConfig(CustomBaseModel):
+    headphones: str = "\ue7f6"
+    headset: str = "\ue95b"
+    speaker: str = "\ue7f5"
+    phone: str = "\ue8ea"
+    tablet: str = "\ue70a"
+    laptop: str = "\ue7f8"
+    computer: str = "\ue950"
+    keyboard: str = "\ue765"
+    mouse: str = "\ue962"
+    controller: str = "\ue7fc"
+    watch: str = "\ue918"
+    camera: str = "\ue722"
+    generic: str = "\ue702"
+    battery: BluetoothBatteryIconsConfig = BluetoothBatteryIconsConfig()
+    scan: str = "\ue72c"
+
+
+class BluetoothDeviceAliasConfig(CustomBaseModel):
+    name: str
+    alias: str
+
+
+class BluetoothLabelsConfig(CustomBaseModel):
+    title: str = "Bluetooth"
+    your_devices: str = "Your devices"
+    new_devices: str = "New devices"
+    not_connected: str = "Not connected"
+    connected: str = "Connected"
+    more_settings: str = "More Bluetooth settings"
+    connect: str = "Connect"
+    disconnect: str = "Disconnect"
+    connecting: str = "Connecting"
+    disconnecting: str = "Disconnecting"
+    pair: str = "Pair"
+    manage: str = "Manage"
+    power_on: str = "On"
+    power_off: str = "Off"
+
+
+class BluetoothMenuConfig(CustomBaseModel):
+    blur: bool = True
+    round_corners: bool = True
+    round_corners_type: str = "normal"
+    border_color: str = "System"
+    alignment: str = "right"
+    direction: str = "down"
+    offset_top: int = 6
+    offset_left: int = 0
+    labels: BluetoothLabelsConfig = BluetoothLabelsConfig()
+    device_icons: BluetoothDeviceIconsConfig = BluetoothDeviceIconsConfig()
+
+
+class BluetoothCallbacksConfig(CallbacksConfig):
+    on_left: str = "toggle_menu"
+
+
+class BluetoothConfig(CustomBaseModel):
+    label: str = "\ue702"
+    label_alt: str = "\ue702"
+    class_name: str = ""
+    label_no_device: str = "No devices connected"
+    label_device_separator: str = ", "
+    max_length: int | None = None
+    max_length_ellipsis: str = "..."
+    tooltip: bool = True
+    icons: BluetoothIconsConfig = BluetoothIconsConfig()
+    device_aliases: list[BluetoothDeviceAliasConfig] = []
+    keybindings: list[KeybindingConfig] = []
+    callbacks: BluetoothCallbacksConfig = BluetoothCallbacksConfig()
+    menu_config: BluetoothMenuConfig = BluetoothMenuConfig()

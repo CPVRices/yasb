@@ -1,146 +1,34 @@
-DEFAULTS = {
-    "class_name": "systray",
-    "label_collapsed": "▼",
-    "label_expanded": "▶",
-    "label_position": "left",
-    "icon_size": 16,
-    "pin_click_modifier": "alt",
-    "show_unpinned": True,
-    "show_unpinned_button": True,
-    "show_battery": False,
-    "show_volume": False,
-    "show_network": False,
-    "container_padding": {"left": 0, "top": 0, "right": 0, "bottom": 0},
-    "default_shadow": {
-        "enabled": False,
-        "color": "black",
-        "offset": [1, 1],
-        "radius": 3,
-    },
-}
+from pydantic import Field
 
-VALIDATION_SCHEMA = {
-    "class_name": {
-        "type": "string",
-        "required": False,
-        "default": DEFAULTS["class_name"],
-    },
-    "label_collapsed": {
-        "type": "string",
-        "required": False,
-        "default": DEFAULTS["label_collapsed"],
-    },
-    "label_expanded": {
-        "type": "string",
-        "required": False,
-        "default": DEFAULTS["label_expanded"],
-    },
-    "label_position": {
-        "type": "string",
-        "required": False,
-        "default": DEFAULTS["label_position"],
-    },
-    "icon_size": {
-        "type": "integer",
-        "required": False,
-        "default": DEFAULTS["icon_size"],
-        "min": 8,
-        "max": 64,
-    },
-    "pin_click_modifier": {
-        "type": "string",
-        "required": False,
-        "default": DEFAULTS["pin_click_modifier"],
-    },
-    "show_unpinned": {
-        "type": "boolean",
-        "required": False,
-        "default": DEFAULTS["show_unpinned"],
-    },
-    "show_unpinned_button": {
-        "type": "boolean",
-        "required": False,
-        "default": DEFAULTS["show_unpinned_button"],
-    },
-    "show_battery": {
-        "type": "boolean",
-        "required": False,
-        "default": DEFAULTS["show_battery"],
-    },
-    "show_volume": {
-        "type": "boolean",
-        "required": False,
-        "default": DEFAULTS["show_volume"],
-    },
-    "show_network": {
-        "type": "boolean",
-        "required": False,
-        "default": DEFAULTS["show_network"],
-    },
-    "container_padding": {
-        "type": "dict",
-        "required": False,
-        "schema": {
-            "left": {"type": "integer", "default": 0},
-            "top": {"type": "integer", "default": 0},
-            "right": {"type": "integer", "default": 0},
-            "bottom": {"type": "integer", "default": 0},
-        },
-        "default": DEFAULTS["container_padding"],
-    },
-    "container_shadow": {
-        "type": "dict",
-        "required": False,
-        "schema": {
-            "enabled": {"type": "boolean", "default": False},
-            "color": {"type": "string", "default": "black"},
-            "offset": {"type": "list", "default": [1, 1]},
-            "radius": {"type": "integer", "default": 3},
-        },
-        "default": DEFAULTS["default_shadow"],
-    },
-    "unpinned_shadow": {
-        "type": "dict",
-        "required": False,
-        "schema": {
-            "enabled": {"type": "boolean", "default": False},
-            "color": {"type": "string", "default": "black"},
-            "offset": {"type": "list", "default": [1, 1]},
-            "radius": {"type": "integer", "default": 3},
-        },
-        "default": DEFAULTS["default_shadow"],
-    },
-    "pinned_shadow": {
-        "type": "dict",
-        "required": False,
-        "schema": {
-            "enabled": {"type": "boolean", "default": False},
-            "color": {"type": "string", "default": "black"},
-            "offset": {"type": "list", "default": [1, 1]},
-            "radius": {"type": "integer", "default": 3},
-        },
-        "default": DEFAULTS["default_shadow"],
-    },
-    "unpinned_vis_btn_shadow": {
-        "type": "dict",
-        "required": False,
-        "schema": {
-            "enabled": {"type": "boolean", "default": False},
-            "color": {"type": "string", "default": "black"},
-            "offset": {"type": "list", "default": [1, 1]},
-            "radius": {"type": "integer", "default": 3},
-        },
-        "default": DEFAULTS["default_shadow"],
-    },
-    "btn_shadow": {
-        "type": "dict",
-        "required": False,
-        "schema": {
-            "enabled": {"type": "boolean", "default": False},
-            "color": {"type": "string", "default": "black"},
-            "offset": {"type": "list", "default": [1, 1]},
-            "radius": {"type": "integer", "default": 3},
-        },
-        "default": DEFAULTS["default_shadow"],
-    },
-}
+from core.validation.widgets.base_model import CustomBaseModel
+
+
+class SystrayPopupConfig(CustomBaseModel):
+    blur: bool = True
+    round_corners: bool = True
+    round_corners_type: str = "normal"
+    border_color: str = "System"
+    alignment: str = "right"
+    direction: str = "down"
+    offset_top: int = 6
+    offset_left: int = 0
+
+
+class SystrayWidgetConfig(CustomBaseModel):
+    class_name: str = "systray"
+    label_collapsed: str = "▼"
+    label_expanded: str = "▶"
+    label_position: str = "left"
+    icon_size: int = Field(default=16, ge=8, le=64)
+    pin_click_modifier: str = "alt"
+    show_unpinned: bool = True
+    show_unpinned_button: bool = True
+    show_in_popup: bool = False
+    icons_per_row: int = Field(default=5, ge=1, le=12)
+    popup: SystrayPopupConfig = SystrayPopupConfig()
+    show_battery: bool = False
+    show_volume: bool = False
+    show_network: bool = False
+    hide_icons: list[str] = []
+    tooltip: bool = True
+    use_hook: bool = False

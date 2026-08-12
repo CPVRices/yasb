@@ -1,15 +1,14 @@
 # Komorebi Layout
+
+Shows the active window arrangement layout in Komorebi (like BSP, columns, rows, or floating). You can click to cycle layouts, toggle monocle or floating states, or open a menu to select a layout with descriptive icons.
+
 | Option          | Type    | Default                                                                 | Description                                                                 |
 |-----------------|---------|-------------------------------------------------------------------------|-----------------------------------------------------------------------------|
 | `hide_if_offline` | boolean | `true`                                                                  | Whether to hide the widget if offline.                                      |
 | `label`         | string  | `"{icon}"`                                                              | The label format string for the widget.                                     |
 | `layouts`       | list    | `['bsp', 'columns', 'rows', 'grid', 'scrolling', 'vertical_stack', 'horizontal_stack', 'ultrawide_vertical_stack', 'right_main_vertical_stack']` | The list of layouts available for the widget.                              |
-| `layout_icons`  | dict    | `{ 'bsp': 'BSP', 'columns': 'COLS', 'rows': 'ROWS', 'grid': 'GRID', 'scrolling': 'SC', 'vertical_stack': 'V-STACK', 'horizontal_stack': 'H-STACK', 'ultrawide_vertical_stack': 'W-STACK', 'right_main_vertical_stack': 'RMV-STACK', 'monocle': 'MONOCLE', 'maximised': 'MAX', 'floating': 'FLOATING', 'paused': 'PAUSED' }` | The icons for each layout.                                                 |
+| `layout_icons`  | dict    | `{ 'bsp': 'BSP', 'columns': 'COLS', 'rows': 'ROWS', 'grid': 'GRID', 'scrolling': 'SC', 'vertical_stack': 'V-STACK', 'horizontal_stack': 'H-STACK', 'ultrawide_vertical_stack': 'W-STACK', 'right_main_vertical_stack': 'RMV-STACK', 'monocle': 'MONOCLE', 'maximized': 'MAX', 'floating': 'FLOATING', 'paused': 'PAUSED' }` | The icons for each layout.                                                 |
 | `callbacks`     | dict    | `{ 'on_left': 'next_layout', 'on_middle': 'toggle_monocle', 'on_right': 'prev_layout' }` | Callbacks for mouse events on the widget.                                   |
-| `container_padding`  | dict | `{'top': 0, 'left': 0, 'bottom': 0, 'right': 0}`      | Explicitly set padding inside widget container.                            |
-| `animation`         | dict    | `{'enabled': True, 'type': 'fadeInOut', 'duration': 200}`               | Animation settings for the widget.                                          |
-| `container_shadow`   | dict   | `None`                  | Container shadow options.                       |
-| `label_shadow`         | dict   | `None`                  | Label shadow options.                 |
 
 ## Menu Configuration (`layout_menu`)
 
@@ -17,15 +16,15 @@ The `layout_menu` option allows you to configure the popup menu for layout selec
 
 | Option              | Type     | Default      | Description                                                                 |
 |---------------------|----------|--------------|-----------------------------------------------------------------------------|
-| `blur`              | boolean  | `True`       | Enables a blur effect in the menu popup.                                    |
-| `round_corners`     | boolean  | `True`       | If `true`, the menu has rounded corners.                                    |
+| `blur`              | boolean  | `true`       | Enables a blur effect in the menu popup.                                    |
+| `round_corners`     | boolean  | `true`       | If `true`, the menu has rounded corners.                                    |
 | `round_corners_type`| string   | `"normal"`   | Determines the corner style; allowed values are `normal` and `small`.       |
 | `border_color`      | string   | `"System"`   | Sets the border color for the menu. Can be `"System"`, `None` or HEX                                        |
 | `alignment`         | string   | `"left"`     | Horizontal alignment of the menu relative to the widget (`left`, `right`, `center`). |
 | `direction`         | string   | `"down"`     | Direction in which the menu opens (`down` or `up`).                         |
 | `offset_top`        | integer  | `6`          | Vertical offset for fine positioning of the menu.                           |
 | `offset_left`       | integer  | `0`          | Horizontal offset for fine positioning of the menu.                         |
-| `show_layout_icons` | boolean  | `True`       | Whether to show icons for each layout in the menu.                          |
+| `show_layout_icons` | boolean  | `true`       | Whether to show icons for each layout in the menu.                          |
 
 ## Example Configuration
 
@@ -47,7 +46,7 @@ komorebi_active_layout:
       ultrawide_vertical_stack: "\uebee"
       right_main_vertical_stack: "\uebf1"
       monocle: "\uf06f"
-      maximised: "\uf06f"
+      maximized: "\uf06f"
       floating: "\uf2d2"
       paused: "\udb83\udf89"
       tiling: "\udb81\ude40"
@@ -65,16 +64,6 @@ komorebi_active_layout:
       offset_top: 6
       offset_left: 0
       show_layout_icons: true
-    container_padding: 
-      top: 0
-      left: 8
-      bottom: 0
-      right: 8
-    label_shadow:
-      enabled: true
-      color: "black"
-      radius: 3
-      offset: [ 1, 1 ]
 ```
 
 ## Description of Options
@@ -83,11 +72,7 @@ komorebi_active_layout:
 - **label**: The label format string for the widget.
 - **layouts**: The list of layouts available for the widget.
 - **layout_icons**: The icons for each layout.
-- **container_padding**: Explicitly set padding inside widget container. Use this option to set padding inside the widget container. You can set padding for top, left, bottom and right sides of the widget container.
 - **callbacks**: A dictionary specifying the callbacks for mouse events. The keys are `on_left`, `on_middle`, and `on_right`, and the values are the names of the callback functions.
-- **animation:** A dictionary specifying the animation settings for the widget. It contains three keys: `enabled`, `type`, and `duration`. The `type` can be `fadeInOut` and the `duration` is the animation duration in milliseconds.
-- **container_shadow:** Container shadow options.
-- **label_shadow:** Label shadow options.
 - **layout_menu**: A dictionary specifying the menu settings for the widget. It contains the following keys:
   - **blur**: Enable blur effect for the menu.
   - **round_corners**: Enable round corners for the menu (this option is not supported on Windows 10).
@@ -111,7 +96,7 @@ komorebi_active_layout:
 "toggle_tiling"
 "toggle_float"
 "toggle_monocle"
-"toggle_maximise"
+"toggle_maximize"
 "toggle_pause"
 "toggle_layout_menu"
 ```

@@ -1,9 +1,7 @@
 import json
 import logging
-import os
 import re
 import threading
-from pathlib import Path
 from typing import Any, override
 from uuid import UUID
 
@@ -12,22 +10,23 @@ from PyQt6.QtCore import (
     Qt,
     QThread,
     QTimer,
-    pyqtSlot,  # pyright: ignore [reportUnknownVariableType]
+    pyqtSlot,
 )
 from PyQt6.QtWidgets import (
     QApplication,
+    QFrame,
     QHBoxLayout,
     QLayout,
     QMenu,
     QPushButton,
-    QWidget,
 )
+from win32con import HWND_BROADCAST
 
-from core.utils.systray.systray_widget import DropWidget, IconState, IconWidget
-from core.utils.systray.tasks_service import TasksService
-from core.utils.systray.tray_monitor import IconData, TrayMonitor
-from core.utils.utilities import add_shadow
+from core.bar_helper import AppBarManager
+from core.utils.system import app_data_path
+from core.utils.utilities import refresh_widget_style
 from core.utils.win32.bindings import IsWindow
+from core.utils.win32.bindings.user32 import RegisterWindowMessage, SendNotifyMessage
 from core.utils.win32.constants import (
     NIF_GUID,
     NIF_ICON,
@@ -36,121 +35,97 @@ from core.utils.win32.constants import (
     NIF_STATE,
     NIF_TIP,
 )
-from core.validation.widgets.yasb.systray import VALIDATION_SCHEMA
+from core.utils.win32.utils import apply_qmenu_style, get_windows_host_arch, is_running_under_emulation
+from core.validation.widgets.yasb.systray import SystrayWidgetConfig
 from core.widgets.base import BaseWidget
+from core.widgets.services.systray.systray_hook import SystrayHook
+from core.widgets.services.systray.systray_monitor import IconData, SystrayMonitor
+from core.widgets.services.systray.systray_popup import SystrayPopup
+from core.widgets.services.systray.systray_widget import DropWidget, IconState, IconWidget
+from core.widgets.services.systray.utils import hook_dll_exists
 
 logger = logging.getLogger("systray_widget")
-
-LOCALDATA_FOLDER = Path(os.environ["LOCALAPPDATA"]) / "Yasb"
 
 BATTERY_ICON_GUID = UUID("7820ae75-23e3-4229-82c1-e41cb67d5b9c")
 VOLUME_ICON_GUID = UUID("7820ae73-23e3-4229-82c1-e41cb67d5b9c")
 NETWORK_GUID = UUID("7820ae74-23e3-4229-82c1-e41cb67d5b9c")
 
 
-class TrayMonitorThread(QThread):
-    """Separate thread to run TrayMonitorClient"""
+class SystrayMonitorThread(QThread):
+    """Separate thread to run SystrayMonitorClient"""
 
-    def __init__(self, client: TrayMonitor):
+    def __init__(self, client: SystrayMonitor):
         super().__init__()
         self.client = client
 
     @override
     def run(self):
-        threading.current_thread().name = "TrayMonitor"
-        logger.debug("Systray thread is starting...")
+        threading.current_thread().name = "SystrayMonitor"
+        logger.debug("Systray monitor thread is starting...")
         self.client.run()
 
 
-class TaskbarServiceThread(QThread):
-    """Thread to handle Taskbar related messages"""
+class SystrayHookThread(QThread):
+    """Separate thread to run SystrayHookClient"""
 
-    def __init__(self, client: TasksService):
+    def __init__(self, client: SystrayHook):
         super().__init__()
         self.client = client
 
     @override
     def run(self):
-        threading.current_thread().name = "TaskbarService"
-        logger.debug("TaskbarService thread is starting...")
+        threading.current_thread().name = "SystrayHook"
+        logger.debug("Systray hook thread is starting...")
         self.client.run()
 
 
 class SystrayWidget(BaseWidget):
-    validation_schema: dict[str, Any] = VALIDATION_SCHEMA
-    _systray_instance = None
-    _systray_thread = None
-    _tasks_service_instance = None
-    _tasks_thread = None
+    validation_schema = SystrayWidgetConfig
+    _systray_client_instance = None
+    _systray_client_thread = None
+    _systray_refresh_signal = None
+    _systray_about_to_quit_signal = None
 
     @classmethod
-    def get_client_instance(cls):
+    def get_monitor_instance(cls, hook: bool = False):
         """
-        Since we don't want multiple systray monitors,
-        as they will just bounce messages between each other and cause issues,
-        we create a single instance of the TrayMonitor and use it for all widgets.
+        Since we don't want multiple systray monitors or hooks,
+        we create a single instance of the SystrayMonitor or SystrayHook and use it for all widgets.
         """
-        if cls._systray_instance is None:
-            cls._systray_instance = TrayMonitor()
-            cls._systray_thread = TrayMonitorThread(cls._systray_instance)
-            cls._tasks_service_instance = TasksService()
-            cls._tasks_thread = TaskbarServiceThread(cls._tasks_service_instance)
+        if cls._systray_client_instance is None:
+            if hook:
+                cls._systray_client_instance = SystrayHook()
+                cls._systray_client_thread = SystrayHookThread(cls._systray_client_instance)
+            else:
+                cls._systray_client_instance = SystrayMonitor()
+                cls._systray_client_thread = SystrayMonitorThread(cls._systray_client_instance)
 
         return (
-            cls._systray_instance,
-            cls._systray_thread,
-            cls._tasks_service_instance,
-            cls._tasks_thread,
+            cls._systray_client_instance,
+            cls._systray_client_thread,
         )
 
-    def __init__(
-        self,
-        class_name: str,
-        label_collapsed: str,
-        label_expanded: str,
-        label_position: str,
-        icon_size: int,
-        pin_click_modifier: str,
-        show_unpinned: bool,
-        show_unpinned_button: bool,
-        show_battery: bool,
-        show_volume: bool,
-        show_network: bool,
-        container_padding: dict[str, int],
-        container_shadow: dict[str, Any],
-        unpinned_shadow: dict[str, Any],
-        pinned_shadow: dict[str, Any],
-        unpinned_vis_btn_shadow: dict[str, Any],
-        btn_shadow: dict[str, Any],
-    ):
-        super().__init__(class_name=class_name)  # type: ignore
-        self.label_collapsed = label_collapsed
-        self.label_expanded = label_expanded
-        self.label_position = label_position if label_position in {"left", "right"} else "left"
-        self.icon_size = icon_size
-        self.show_unpinned = show_unpinned
-        self.show_unpinned_button = show_unpinned_button
-        self.container_padding = container_padding
-        self.container_shadow = container_shadow
-        self.unpinned_shadow = unpinned_shadow
-        self.pinned_shadow = pinned_shadow
-        self.unpinned_vis_btn_shadow = unpinned_vis_btn_shadow
-        self.btn_shadow = btn_shadow
+    def __init__(self, config: SystrayWidgetConfig):
+        super().__init__(class_name=config.class_name)
+        self.config = config
 
         self.filtered_guids: set[UUID] = set()
-        if not show_battery:
+        if not self.config.show_battery:
             self.filtered_guids.add(BATTERY_ICON_GUID)
-        if not show_volume:
+        if not self.config.show_volume:
             self.filtered_guids.add(VOLUME_ICON_GUID)
-        if not show_network:
+        if not self.config.show_network:
             self.filtered_guids.add(NETWORK_GUID)
 
-        IconWidget.icon_size = icon_size
+        self.hidden_icons_lower: list[str] = [h.lower() for h in self.config.hide_icons]
+
+        IconWidget.icon_size = self.config.icon_size
+        IconWidget.enable_tooltips = self.config.tooltip
         IconWidget.pin_modifier_key = {
             "ctrl": Qt.KeyboardModifier.ControlModifier,
             "alt": Qt.KeyboardModifier.AltModifier,
             "shift": Qt.KeyboardModifier.ShiftModifier,
-        }.get(pin_click_modifier.lower(), Qt.KeyboardModifier.AltModifier)
+        }.get(self.config.pin_click_modifier.lower(), Qt.KeyboardModifier.AltModifier)
 
         self.icons: list[IconWidget] = []
         self.current_state: dict[str, IconState] = {}
@@ -158,35 +133,35 @@ class SystrayWidget(BaseWidget):
 
         # This timer will check if icons are still valid and have actual process attached
         self.icon_check_timer = QTimer(self)
-        self.icon_check_timer.timeout.connect(self.check_icons)  # type: ignore
+        self.icon_check_timer.timeout.connect(self.check_icons)
         self.icon_check_timer.start(5000)
 
+        self.refresh_systray_timer = QTimer(self)
+        self.refresh_systray_timer.timeout.connect(self.refresh_systray)
+        self.refresh_systray_timer.setInterval(200)
+        self.refresh_systray_timer.setSingleShot(True)
+
         self.sort_timer = QTimer(self)
-        self.sort_timer.timeout.connect(self.sort_icons)  # type: ignore
+        self.sort_timer.timeout.connect(self.sort_icons)
         self.sort_timer.setSingleShot(True)
 
         self.pinned_vis_check_timer = QTimer(self)
-        self.pinned_vis_check_timer.timeout.connect(self.update_pinned_widget_visibility)  # type: ignore
+        self.pinned_vis_check_timer.timeout.connect(self.update_pinned_widget_visibility)
         self.pinned_vis_check_timer.setSingleShot(True)
 
         self.widget_container_layout = QHBoxLayout()
         self.widget_container_layout.setSpacing(0)
-        self.widget_container_layout.setContentsMargins(
-            self.container_padding["left"],
-            self.container_padding["top"],
-            self.container_padding["right"],
-            self.container_padding["bottom"],
-        )
+        self.widget_container_layout.setContentsMargins(0, 0, 0, 0)
 
-        self.widget_container = QWidget(self)
+        self.widget_container = QFrame(self)
         self.widget_container.setLayout(self.widget_container_layout)
         self.widget_container.setProperty("class", "widget-container")
 
         self.unpinned_vis_btn = QPushButton(self)
         self.unpinned_vis_btn.setCheckable(True)
-        self.unpinned_vis_btn.clicked.connect(self.toggle_unpinned_widget_visibility)  # type: ignore
+        self.unpinned_vis_btn.clicked.connect(self.toggle_unpinned_widget_visibility)
         self.unpinned_vis_btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.unpinned_vis_btn.customContextMenuRequested.connect(self.show_context_menu)  # type: ignore
+        self.unpinned_vis_btn.customContextMenuRequested.connect(self.show_context_menu)
 
         self.unpinned_widget = DropWidget(self)
         self.unpinned_layout = self.unpinned_widget.main_layout
@@ -200,107 +175,204 @@ class SystrayWidget(BaseWidget):
         self.unpinned_widget.setProperty("class", "unpinned-container")
         self.unpinned_vis_btn.setProperty("class", "unpinned-visibility-btn")
 
-        self.unpinned_widget.drag_started.connect(self.on_drag_started)  # type: ignore
-        self.unpinned_widget.drag_ended.connect(self.on_drag_ended)  # type: ignore
-        self.pinned_widget.drag_started.connect(self.on_drag_started)  # type: ignore
-        self.pinned_widget.drag_ended.connect(self.on_drag_ended)  # type: ignore
+        self.unpinned_widget.drag_started.connect(self.on_unpinned_drag_started)
+        self.unpinned_widget.drag_ended.connect(self.on_drag_ended)
+        self.pinned_widget.drag_started.connect(self.on_pinned_drag_started)
+        self.pinned_widget.drag_ended.connect(self.on_drag_ended)
 
-        add_shadow(self.widget_container, self.container_shadow)
-        add_shadow(self.unpinned_widget, self.unpinned_shadow)
-        add_shadow(self.pinned_widget, self.pinned_shadow)
-        add_shadow(self.unpinned_vis_btn, self.unpinned_vis_btn_shadow)
+        if self.config.show_in_popup:
+            # Popup mode: unpinned icons shown in a popup grid
+            self._systray_popup = SystrayPopup(
+                parent=self,
+                toggle_btn=self.unpinned_vis_btn,
+                popup_config=self.config.popup,
+                icons_per_row=self.config.icons_per_row,
+                label_collapsed=self.config.label_collapsed,
+            )
 
-        self.widget_container_layout.addWidget(self.unpinned_widget)
-        self.widget_container_layout.addWidget(self.pinned_widget)
+            # Reassign unpinned references to the popup container
+            self._original_unpinned_widget = self.unpinned_widget
+            self._original_unpinned_widget.hide()
+            self._original_unpinned_widget.setParent(None)
+            self.unpinned_widget = self._systray_popup
+            self.unpinned_layout = self._systray_popup.grid_widget.main_layout
 
-        if self.label_position == "left":
-            self.widget_container_layout.insertWidget(0, self.unpinned_vis_btn)
+            # Connect popup grid drag signals
+            self._systray_popup.grid_widget.drag_started.connect(self.on_unpinned_drag_started)
+            self._systray_popup.grid_widget.drag_ended.connect(self.on_drag_ended)
+
+            # Only pinned widget and button go in the bar
+            self.widget_container_layout.addWidget(self.pinned_widget)
+            if self.config.label_position == "left":
+                self.widget_container_layout.insertWidget(0, self.unpinned_vis_btn)
+            else:
+                self.widget_container_layout.insertWidget(-1, self.unpinned_vis_btn)
+
+            self.unpinned_vis_btn.setVisible(True)
         else:
-            self.widget_container_layout.insertWidget(-1, self.unpinned_vis_btn)
+            # Inline mode
+            self.widget_container_layout.addWidget(self.unpinned_widget)
+            self.widget_container_layout.addWidget(self.pinned_widget)
+
+            if self.config.label_position == "left":
+                self.widget_container_layout.insertWidget(0, self.unpinned_vis_btn)
+            else:
+                self.widget_container_layout.insertWidget(-1, self.unpinned_vis_btn)
+
+            self.unpinned_vis_btn.setVisible(self.config.show_unpinned_button)
 
         self.widget_layout.addWidget(self.widget_container)
 
-        self.unpinned_vis_btn.setVisible(self.show_unpinned_button)
-
-        QTimer.singleShot(0, self.setup_client)  # pyright: ignore [reportUnknownMemberType]
-        QTimer.singleShot(0, self.set_containers_visibility)  # pyright: ignore [reportUnknownMemberType]
+        if self.config.use_hook:
+            self.setup_client()
+            self.set_containers_visibility()
+        else:
+            QTimer.singleShot(0, self.setup_client)
+            QTimer.singleShot(0, self.set_containers_visibility)
 
     def show_context_menu(self, pos: QPoint):
         """Show the context menu for the unpinned visibility button"""
-        menu = QMenu(self)
+        menu = QMenu(self.window())
+        apply_qmenu_style(menu)
+        menu.setProperty("class", "context-menu")
         menu.setContentsMargins(0, 0, 0, 0)
         menu.setLayoutDirection(Qt.LayoutDirection.LeftToRight)
-        menu.setStyleSheet("""
-            QMenu::item {
-                padding: 4px 6px;
-            }
-            QMenu::item:selected {
-                background-color: #444;
-                color: white;
-                border-radius: 6px;
-            }
-        """)
-        refresh_action = menu.addAction("Refresh Systray")  # pyright: ignore [reportUnknownMemberType]
+        refresh_action = menu.addAction("Refresh Systray")
         if not refresh_action:
             return
-        refresh_action.triggered.connect(self.refresh_systray)  # pyright: ignore [reportUnknownMemberType]
-        menu.exec(self.unpinned_vis_btn.mapToGlobal(pos))
+        refresh_action.triggered.connect(self.refresh_systray)
+
+        menu.popup(self.unpinned_vis_btn.mapToGlobal(pos))
+        try:
+            menu.activateWindow()
+        except Exception:
+            pass
 
     def refresh_systray(self):
         """Refresh the icons by sending a message to the tray monitor"""
-        TrayMonitor.send_taskbar_created()
+        mgr = AppBarManager()
+        mgr.suppress()
+        taskbar_created_msg = RegisterWindowMessage("TaskbarCreated")
+        SendNotifyMessage(HWND_BROADCAST, taskbar_created_msg, 0, 0)
+        logger.debug("Sending TaskbarCreated message: %s", taskbar_created_msg)
+        QTimer.singleShot(0, mgr.unsuppress)
         logger.debug("Systray icons refreshed")
 
     def setup_client(self):
         """Setup the tray monitor client and connect signals"""
+        is_platform_supported = get_windows_host_arch() in ("AMD64", "ARM64")
+        if self.config.use_hook:
+            if is_running_under_emulation():
+                logger.debug("Running under emulation. Systray hook disabled; falling back to legacy mode.")
+                self.config.use_hook = False
+            elif not is_platform_supported:
+                logger.debug("Platform not supported by systray hook. Reverting to legacy mode.")
+                self.config.use_hook = False
+            elif not hook_dll_exists():
+                logger.warning("Systray hook DLL missing. Reverting to legacy mode.")
+                self.config.use_hook = False
+
         self.load_state()
-        systray_client, systray_thread, tasks_service, tasks_thread = SystrayWidget.get_client_instance()
-        systray_client.icon_modified.connect(self.on_icon_modified)  # type: ignore
-        systray_client.icon_deleted.connect(self.on_icon_deleted)  # type: ignore
+        systray_client, systray_thread = SystrayWidget.get_monitor_instance(self.config.use_hook)
+
+        systray_client.icon_modified.connect(self.on_icon_modified)
+        systray_client.icon_deleted.connect(self.on_icon_deleted)
+
+        if SystrayWidget._systray_refresh_signal is None:
+            SystrayWidget._systray_refresh_signal = systray_client.update_icons.connect(
+                self.refresh_systray_timer.start
+            )
 
         app_inst = QApplication.instance()
         if app_inst is not None:
-            app_inst.aboutToQuit.connect(self.save_state)  # type: ignore
+            app_inst.aboutToQuit.connect(self.save_state)
+
+            if SystrayWidget._systray_about_to_quit_signal is None:
+                SystrayWidget._systray_about_to_quit_signal = app_inst.aboutToQuit.connect(self._cleanup_threads)
 
         if systray_thread is not None and not systray_thread.isRunning():
             systray_thread.start()
-            systray_thread.started.connect(self.on_thread_started)  # type: ignore
-            if tasks_service is not None and tasks_thread is not None:
-                tasks_thread.start()
+
+    @classmethod
+    def _cleanup_threads(cls):
+        """Cleanup destroy Win32 message loop threads before app quit"""
+        try:
+            if cls._systray_client_instance is not None:
+                cls._systray_client_instance.destroy()
+                cls._systray_client_instance = None
+
+            if cls._systray_client_thread is not None and cls._systray_client_thread.isRunning():
+                cls._systray_client_thread.wait(3000)
+                cls._systray_client_thread = None
+
+        except Exception as e:
+            logger.debug("Error during thread cleanup: %s", e)
 
     def set_containers_visibility(self):
         """Update the containers visibility based on the show_unpinned_button setting"""
-        self.unpinned_vis_btn.setChecked(self.show_unpinned)
-        self.unpinned_vis_btn.setText(self.label_expanded if self.show_unpinned else self.label_collapsed)
-        self.unpinned_widget.setVisible(self.show_unpinned or not self.show_unpinned_button)
+        if self.config.show_in_popup:
+            self.unpinned_vis_btn.setChecked(False)
+            self.unpinned_vis_btn.setText(self.config.label_collapsed)
+        else:
+            self.unpinned_vis_btn.setChecked(self.config.show_unpinned)
+            self.unpinned_vis_btn.setText(
+                self.config.label_expanded if self.config.show_unpinned else self.config.label_collapsed
+            )
+            self.unpinned_widget.setVisible(self.config.show_unpinned or not self.config.show_unpinned_button)
 
-    def on_thread_started(self):
-        logger.debug("Systray thread started")
-        QTimer.singleShot(200, TrayMonitor.send_taskbar_created)  # pyright: ignore [reportUnknownMemberType]
+    @pyqtSlot(int)
+    def on_pinned_drag_started(self, icon_width: int = 0):
+        self.on_drag_started(icon_width, from_pinned=True)
 
-    @pyqtSlot()
-    def on_drag_started(self):
+    @pyqtSlot(int)
+    def on_unpinned_drag_started(self, icon_width: int = 0):
+        self.on_drag_started(icon_width, from_pinned=False)
+
+    def on_drag_started(self, icon_width: int = 0, from_pinned: bool = False):
         """Handle drag started signal for drag-and-drop functionality"""
+        if self.config.show_in_popup and from_pinned and not self._systray_popup.is_visible:
+            # Keep the unpinned grid available as a drop target while dragging from pinned.
+            self._systray_popup.open(self.config.label_expanded)
+        if self.config.show_in_popup and from_pinned:
+            self._systray_popup.grid_widget.set_drop_target_style(True)
+
         # Always show pinned widget during drag operations
         self.update_pinned_widget_visibility(force_show=True)
+        # When pinned container is empty, expand it to match one icon button size
+        if self.is_layout_empty(self.pinned_layout):
+            if icon_width > 0:
+                self.pinned_widget.setMinimumWidth(icon_width)
+            self.pinned_widget.set_drop_target_style(True)
 
     @pyqtSlot()
     def on_drag_ended(self):
         """Handle drag ended signal for drag-and-drop functionality"""
-        # Update visibility based on content
+        if self.config.show_in_popup:
+            self._systray_popup.grid_widget.set_drop_target_style(False)
+
+        # Clear drop-target indicator and restore min width
+        self.pinned_widget.set_drop_target_style(False)
+        self.pinned_widget.setMinimumWidth(16)
         self.update_pinned_widget_visibility()
+
+    def _is_hidden_icon(self, data: IconData) -> bool:
+        if not self.hidden_icons_lower:
+            return False
+        return data.exe.lower() in self.hidden_icons_lower
 
     @pyqtSlot(IconData)
     def on_icon_modified(self, data: IconData):
         """Handle icon modified signal sent by the tray monitor"""
         if data.guid in self.filtered_guids:
             return
+        if self._is_hidden_icon(data):
+            return
         icon = self.find_icon(data.guid, data.hWnd, data.uID)
         if icon is None:
             icon = IconWidget()
             icon.data = IconData()
-            icon.pinned_changed.connect(self.on_icon_pinned_changed)  # type: ignore
-            icon.icon_moved.connect(self.on_icon_moved)  # type: ignore
+            icon.pinned_changed.connect(self.on_icon_pinned_changed)
+            icon.icon_moved.connect(self.on_icon_moved)
             self.icons.append(icon)
 
             # Check if the saved data exists for the icon by uuid and exe path
@@ -312,20 +384,22 @@ class SystrayWidget(BaseWidget):
                     IconState(index=-1, is_pinned=False),
                 ),
             )
-            add_shadow(icon, self.btn_shadow)
 
             # Place the new icon in the correct layout and index
             icon.is_pinned = saved_data.is_pinned
             if saved_data.is_pinned:
                 self.pinned_layout.addWidget(icon)
             else:
-                self.unpinned_layout.addWidget(icon)
+                self._add_icon_to_unpinned(icon)
 
             # After a short delay (if no new icons are added) - re-sort the icons once
             self.sort_timer.start(1000)
         self.update_icon_data(icon.data, data)
         icon.update_icon()
+        was_hidden = icon.isHidden()
         icon.setHidden(data.uFlags & NIF_STATE != 0 and data.dwState == 1)
+        if self.config.show_in_popup and was_hidden != icon.isHidden():
+            self._relayout_popup_grid()
         self.pinned_vis_check_timer.start(300)
 
     @pyqtSlot(IconData)
@@ -334,23 +408,24 @@ class SystrayWidget(BaseWidget):
         icon = self.find_icon(data.guid, data.hWnd, data.uID)
         if icon is not None:
             self.icons.remove(icon)
+            icon.hide()
             icon.deleteLater()
+            if self.config.show_in_popup:
+                self._relayout_popup_grid()
             self.pinned_vis_check_timer.start(300)
 
     @pyqtSlot(object)
     def on_icon_pinned_changed(self, icon: IconWidget):
         """Handles the icon pinned changed signal sent when user [Mod]+Clicks on the icon"""
-        if icon.parent() is self.unpinned_widget:
+        if not icon.is_pinned:
             self.pinned_layout.addWidget(icon)
             icon.is_pinned = True
         else:
-            self.unpinned_layout.addWidget(icon)
+            self._add_icon_to_unpinned(icon)
             icon.is_pinned = False
-        # NOTE: This is needed to force-update the layout for that widget
-        # otherwise, the widget will not show up in the layout immediately
-        # and update_current_state will fail
         icon.show()
-        self.unpinned_widget.refresh_styles()
+        if self.config.show_in_popup:
+            self._relayout_popup_grid()
         self.pinned_widget.refresh_styles()
         self.save_state()
         self.update_pinned_widget_visibility()
@@ -358,11 +433,9 @@ class SystrayWidget(BaseWidget):
     @pyqtSlot(object)
     def on_icon_moved(self, icon: IconWidget):
         """Handle icon moved signal"""
-        if icon.parent() is self.unpinned_widget:
-            icon.is_pinned = False
-        else:
-            icon.is_pinned = True
-        self.unpinned_widget.refresh_styles()
+        icon.is_pinned = self.pinned_layout.indexOf(icon) != -1
+        if self.config.show_in_popup:
+            self._relayout_popup_grid()
         self.pinned_widget.refresh_styles()
         self.save_state()
 
@@ -386,10 +459,13 @@ class SystrayWidget(BaseWidget):
         for icon in self.icons[:]:
             if icon.data is not None and not IsWindow(icon.data.hWnd):
                 self.icons.remove(icon)
+                icon.hide()
                 icon.deleteLater()
                 icons_changed = True
 
         if icons_changed:
+            if self.config.show_in_popup:
+                self._relayout_popup_grid()
             self.pinned_vis_check_timer.start(300)
 
     def update_icon_data(self, old_data: IconData | None, new_data: IconData):
@@ -407,8 +483,11 @@ class SystrayWidget(BaseWidget):
             "exe_path",
         ]
         for attr in direct_attributes:
+            if attr in ("hWnd", "uID"):
+                continue
             setattr(old_data, attr, getattr(new_data, attr))
-
+        old_data.hWnd = new_data.hWnd or old_data.hWnd
+        old_data.uID = new_data.uID or old_data.uID
         if 0 < new_data.uVersion <= 4:
             old_data.uVersion = new_data.uVersion
 
@@ -426,7 +505,7 @@ class SystrayWidget(BaseWidget):
                 for attr in attrs:
                     setattr(old_data, attr, getattr(new_data, attr))
 
-    def is_layout_empty(self, layout: QHBoxLayout):
+    def is_layout_empty(self, layout: QLayout):
         """Check if a layout has any visible widgets."""
         for i in range(layout.count()):
             item = layout.itemAt(i)
@@ -441,29 +520,27 @@ class SystrayWidget(BaseWidget):
         """
         is_empty = self.is_layout_empty(self.pinned_layout)
         self.pinned_widget.setVisible(not is_empty or force_show)
-        if force_show and is_empty and (w := self.pinned_widget.style()):
-            logger.debug(f"Is empty: {is_empty}, force show: {force_show}")
+        if force_show and is_empty:
             self.pinned_widget.setProperty("forceshow", True)
-            w.unpolish(self.pinned_widget)
-            w.polish(self.pinned_widget)
-        elif self.pinned_widget.property("forceshow") and not is_empty and (w := self.pinned_widget.style()):
-            logger.debug(f"Is empty: {is_empty}, force show: {force_show}")
+            refresh_widget_style(self.pinned_widget)
+        elif self.pinned_widget.property("forceshow") and not is_empty:
             self.pinned_widget.setProperty("forceshow", False)
-            w.unpolish(self.pinned_widget)
-            w.polish(self.pinned_widget)
+            refresh_widget_style(self.pinned_widget)
 
     def toggle_unpinned_widget_visibility(self):
         """On button click, toggle the visibility of the unpinned widget."""
-        if self.unpinned_vis_btn.isChecked():
-            self.unpinned_widget.setVisible(True)
-            self.unpinned_vis_btn.setText(self.label_expanded)
+        if self.config.show_in_popup:
+            self._systray_popup.toggle(self.config.label_expanded)
         else:
-            self.unpinned_widget.setVisible(False)
-            self.unpinned_vis_btn.setText(self.label_collapsed)
+            if self.unpinned_vis_btn.isChecked():
+                self.unpinned_widget.setVisible(True)
+                self.unpinned_vis_btn.setText(self.config.label_expanded)
+            else:
+                self.unpinned_widget.setVisible(False)
+                self.unpinned_vis_btn.setText(self.config.label_collapsed)
 
     def sort_icons(self):
         """Sorts pinned and unpinned widgets based on their state index"""
-        logger.debug("Re-sorting widgets")
         unpinned = self.get_widgets_from_layout(self.unpinned_layout)
         pinned = self.get_widgets_from_layout(self.pinned_layout)
 
@@ -478,21 +555,30 @@ class SystrayWidget(BaseWidget):
 
         unpinned.sort(key=get_sort_index)
         pinned.sort(key=get_sort_index)
-        for w in unpinned:
-            self.unpinned_layout.insertWidget(unpinned.index(w), w)
+
+        if self.config.show_in_popup:
+            self._systray_popup.sort_unpinned(unpinned)
+        else:
+            for w in unpinned:
+                self.unpinned_layout.insertWidget(unpinned.index(w), w)
+
         for w in pinned:
             self.pinned_layout.insertWidget(pinned.index(w), w)
         self.update_current_state()
 
     def update_current_state(self):
-        logger.debug("Updating current state")
         widgets_state: dict[str, Any] = {}
         for w in self.icons:
             if w.data is None or w.isHidden():
                 continue
-            index = self.unpinned_layout.indexOf(w)
-            if index == -1:
-                index = self.pinned_layout.indexOf(w)
+            if self.config.show_in_popup and not w.is_pinned:
+                # Grid layout: compute linear index from grid position
+                idx = self.unpinned_layout.indexOf(w)
+                index = idx if idx != -1 else self.pinned_layout.indexOf(w)
+            else:
+                index = self.unpinned_layout.indexOf(w)
+                if index == -1:
+                    index = self.pinned_layout.indexOf(w)
             uuid = None if w.data.guid is None else str(w.data.guid)
             widgets_state[uuid or w.data.exe_path] = IconState(
                 is_pinned=w.is_pinned,
@@ -503,16 +589,12 @@ class SystrayWidget(BaseWidget):
     def save_state(self):
         """Save the current icon position and pinned state to disk."""
         self.update_current_state()
-        logger.debug("Saving state to disk")
-        if not LOCALDATA_FOLDER.exists():
-            LOCALDATA_FOLDER.mkdir(parents=True, exist_ok=True)
-
         self.get_screen_id()
-        file_path = LOCALDATA_FOLDER / Path(f"systray_state_{self.screen_id}.json")
-        logger.debug(f"Saving state to {file_path}")
+        file_path = app_data_path(f"systray_state_{self.screen_id}.json")
+        logger.debug("Saving state to %s", file_path)
         saved_state: dict[str, Any] = {}
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 saved_state = json.load(f)
         except json.JSONDecodeError:
             logger.debug("State file decode error. Ignoring.")
@@ -526,11 +608,11 @@ class SystrayWidget(BaseWidget):
     def load_state(self):
         """Load the saved icon position and pinned state from disk."""
         self.get_screen_id()
-        file_path = LOCALDATA_FOLDER / Path(f"systray_state_{self.screen_id}.json")
-        logger.debug(f"Loading state from {file_path}")
+        file_path = app_data_path(f"systray_state_{self.screen_id}.json")
+        logger.debug("Loading state from %s", file_path)
         self.current_state = {}
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 state = json.load(f)
                 for k, v in state.items():
                     self.current_state[k] = IconState.from_dict(v)
@@ -555,3 +637,16 @@ class SystrayWidget(BaseWidget):
             if item is not None and (w := item.widget()) and isinstance(w, IconWidget):
                 widgets.append(w)
         return widgets
+
+    def _add_icon_to_unpinned(self, icon: IconWidget):
+        """Add an icon to the unpinned container, using grid layout in popup mode."""
+        if self.config.show_in_popup:
+            self._systray_popup.add_icon(icon)
+        else:
+            self.unpinned_layout.addWidget(icon)
+
+    def _relayout_popup_grid(self):
+        """Relayout all unpinned icons in the popup grid after add/remove/reorder."""
+        if not self.config.show_in_popup:
+            return
+        self._systray_popup.relayout_grid()

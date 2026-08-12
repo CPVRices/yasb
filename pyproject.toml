@@ -9,47 +9,68 @@ description = "Yet Another Status Bar - A highly configurable Windows status bar
 authors = [
     { name = "AmN" },
 ]
-license = { file = "LICENSE" }
+license = "MIT"
 readme = "README.md"
-requires-python = "==3.12.*"
+requires-python = ">= 3.14"
 dependencies = [
-    "PyQt6",
-    "PyQt6_sip",
-    "cerberus",
-    "humanize",
-    "psutil",
-    "pytz",
-    "pywin32",
-    "PyYAML",
-    "tzlocal",
-    "watchdog",
-    "pycaw",
-    "pillow==11.1",
-    "qasync",
-    "obs-websocket-py",
-    "pyvda",
-    "python-dotenv",
-    "winrt.windows.foundation",
-    "winrt.windows.foundation.collections",
-    "winrt.windows.data.xml.dom",
-    "winrt.windows.media",
-    "winrt.windows.media.control",
-    "winrt.windows.networking",
-    "winrt.windows.networking.connectivity",
-    "winrt.windows.storage",
-    "winrt.windows.storage.streams",
-    "winrt.windows.ui.notifications",
-    "winrt.windows.ui.notifications.management",
-    "screen_brightness_control @ git+https://github.com/amnweb/screen_brightness_control.git",
+    "pyqt6==6.10.2",
+    "pydantic==2.13.4",
+    "certifi==2026.7.22",
+    "humanize==4.16.0",
+    "pywin32==312",
+    "pyyaml==6.0.3",
+    "holidays==0.101",
+    "watchdog==6.0.0",
+    "pycaw==20251023",
+    "pillow==12.3.0",
+    "qasync==0.28.0",
+    "pyvda @ git+https://github.com/amnweb/pyvda@master",
+    "python-dotenv==1.2.2",
+    "tzdata==2026.3",
+    "winrt.windows.foundation==3.2.1",
+    "winrt.windows.foundation.collections==3.2.1",
+    "winrt.windows.data.xml.dom==3.2.1",
+    "winrt.windows.media==3.2.1",
+    "winrt.windows.media.control==3.2.1",
+    "winrt.windows.management.deployment==3.2.1",
+    "winrt.windows.applicationmodel==3.2.1",
+    "winrt.windows.applicationmodel.core==3.2.1",
+    "winrt.windows.applicationmodel.datatransfer==3.2.1",
+    "winrt.windows.networking==3.2.1",
+    "winrt.windows.networking.connectivity==3.2.1",
+    "winrt.windows.storage==3.2.1",
+    "winrt.windows.storage.streams==3.2.1",
+    "winrt.windows.ui==3.2.1",
+    "winrt.windows.ui.notifications==3.2.1",
+    "winrt.windows.ui.notifications.management==3.2.1",
+    "winrt.windows.devices.bluetooth==3.2.1",
+    "winrt.windows.devices.display==3.2.1",
+    "winrt.windows.devices.enumeration==3.2.1",
+    "winrt.windows.devices.radios==3.2.1",
+    "winrt.windows.devices.wifi==3.2.1",
+    "winrt.windows.security.credentials==3.2.1",
+    "winrt.windows.ui.viewmanagement==3.2.1",
+    "qt-css-engine @ git+https://github.com/Video-Nomad/qt-css-engine@dev",
 ]
+
+[project.urls]
+Homepage = "https://github.com/amnweb/yasb"
+Documentation = "https://github.com/amnweb/yasb/wiki"
+Repository = "https://github.com/amnweb/yasb"
+Issues = "https://github.com/amnweb/yasb/issues"
+Changelog = "https://github.com/amnweb/yasb/releases/latest"
 
 [project.optional-dependencies]
 dev = [
     "pre-commit",
-    "ruff",
-    "cx_Freeze==7.2.10"
+    "ruff>=0.15.0",
+    "pyqt6-stubs",
+    "types-pillow",
+    "types-pywin32",
 ]
-
+packaging = [
+    "cx-freeze==8.6.4"
+]
 [tool.hatch.metadata]
 allow-direct-references = true
 
@@ -62,14 +83,14 @@ packages = ["src/core"]
 
 [tool.ruff]
 line-length = 120
-target-version = "py312"
+target-version = "py314"
 extend-exclude = [
     "__pycache__",
     ".github",
     ".vscode",
     "build",
     "docs",
-    "demo"   
+    "demo"
 ]
 
 [tool.ruff.lint]
@@ -78,7 +99,7 @@ ignore = [
     "F403",
     "E741",
 ]
-select = ["I", "F"]
+select = ["I", "F", "UP", "G004"]
 fixable = ["ALL"]
 
 [tool.ruff.format]

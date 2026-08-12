@@ -1,5 +1,6 @@
 # Ignore Python cache directories
 __pycache__/
+YASB.egg-info/
 *.pyc
 *.pyo
 *.pyd
@@ -18,6 +19,11 @@ src/build/
 venv/
 dist/
 build/
+build_arm64/
+build_x64/
 # Temporary files
 *.tmp
 *.temp
+.cache
+# IDE files
+compile_commands.json

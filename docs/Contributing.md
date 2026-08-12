@@ -6,7 +6,7 @@ Thank you for your interest in contributing to YASB! This guide will help you ge
 
 ### Prerequisites
 
-- Python 3.12
+- Python 3.14 or higher
 - Git
 - A Windows development environment (YASB is Windows-only)
 
@@ -74,25 +74,12 @@ ruff check .
 ruff check --fix .
 ```
 
-### Project Structure
-
-```
-yasb/
-├── src/
-│   ├── core/
-│   │   ├── widgets/         # Widget implementations
-│   │   └── validation/      # Widget validation schemas
-│   ├── config.yaml          # Default configuration
-│   ├── styles.css           # Default styles
-│   └── main.py              # Application entry point
-├── docs/                    # Documentation
-├── demo/                    # Demo images
-├── .github/                 # GitHub workflows and templates
-├── pyproject.toml           # Project configuration
-└── README.md
-```
-
 ## Contributing Guidelines
+
+### Do Not Modify `schema.json`
+
+`schema.json` is an **auto-generated file** produced from the Pydantic validation models (see `src/core/validation/export_schema.py`). It is regenerated and committed automatically by CI ([`.github/workflows/update-schema.yaml`](https://github.com/amnweb/yasb/blob/main/.github/workflows/update-schema.yaml)) when a release is published.
+
 
 ### Types of Contributions
 
@@ -102,6 +89,24 @@ yasb/
 4. **Performance**: Optimize existing code
 5. **Features**: Add new application features
 
+
+### AI-Generated Code Policy
+
+We welcome contributions that use AI tools (e.g., GitHub Copilot, ChatGPT, or similar) as an **assistive** aid - for example, auto-completion, refactoring, or debugging help. However, the contributor is fully responsible for the quality and correctness of the submitted code. If you use AI tools to generate code for your pull request, you **must**:
+
+1. **Understand the codebase** before submitting. AI-generated code often lacks context about project conventions, architecture, and existing patterns. You must be able to explain every change you submit.
+2. **Review every line** of the generated code. Do not blindly push AI output without verifying correctness, style, and compatibility with the project.
+3. **Test your changes thoroughly** to ensure they work as expected and do not introduce regressions.
+4. **Follow the project's coding standards.** AI tools may not respect Ruff rules, naming conventions, or the project structure.
+5. **Disclose AI usage** in your pull request description when AI tools were used to generate a significant portion of the code.
+6. **Keep AI-generated code minimal and focused.** Do not submit large amounts of boilerplate, duplicated logic, or speculative code that the AI produced beyond what the task requires. Unnecessary generated code will be rejected.
+7. **Ensure originality and licensing.** AI-generated code must not copy or closely replicate code from other projects unless it is appropriately licensed and attributed.
+
+> **Pull requests that appear to be untested, unreviewed AI-generated code will be closed without review.**
+>
+> **Substantial portions of AI-generated code without a clear understanding of the changes may be rejected or require rework.**
+
+We welcome contributions that leverage AI as an assistive tool, but the contributor is fully responsible for the quality and correctness of the submitted code.
 
 ### Creating a New Widget
 Follow the [Writing Widget](https://github.com/amnweb/yasb/wiki/Writing-Widget) guide for detailed instructions.
